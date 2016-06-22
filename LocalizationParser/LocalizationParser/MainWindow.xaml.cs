@@ -56,7 +56,7 @@ namespace LocalizationParser
 
     public class FileProperties
     {
-        public static string Path = "D:\\repo\\Trank\\Projects\\FireAdministrator\\Modules\\AutomationModule\\";
+        public static string Path = "D:\\repo\\Trank\\Projects\\FireAdministrator\\Modules\\StrazhModule\\";
         public static string RootPath = "D:\\repo\\LocalizedTrank\\";
         public static string FileName = string.Empty;
     }
@@ -123,13 +123,12 @@ namespace LocalizationParser
                 var streamWriter = new StreamWriter(path + ".txt", true);
                 streamWriter.WriteLine(Path.GetFullPath(dirString) + "\t" + tmp);
                 streamWriter.Close();
-                //ExportToExcel(path,dirString,tmp);
+                ExportToExcel(path,dirString,tmp);
                 textBox.Text += dirString + Environment.NewLine;
             }
             streamReader.Close();
             KillExcel();
         }
-
         public void ExportToExcel(string path, string dirString, string tmp)
         {
             var ExcelApp = new Excel.Application();
@@ -151,8 +150,12 @@ namespace LocalizationParser
                     string[] subStrings = tmp.Split('\n');
                     foreach (var substring in subStrings)
                     {
-                        workSheet.Cells[row, "B"] = substring;
-                        row++;
+                        string s = Regex.Replace(substring,@"\t", "");
+                        if (!s.StartsWith("//"))
+                        {
+                            workSheet.Cells[row, "B"] = s;
+                            row++;
+                        }
                     }
                 }
                 workSheet.Columns.AutoFit();
@@ -177,8 +180,6 @@ namespace LocalizationParser
         }
         public void KillExcel()
         {
-
-
             Process[] AllProcesses = Process.GetProcessesByName("excel");
 
             // check to kill the right process
