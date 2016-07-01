@@ -65,6 +65,11 @@ namespace LocalizationParser
                     break;
             }
         }
+
+        private void Button_Click2(object sender, RoutedEventArgs e)
+        {
+            Process.Start(@FileProperties.RootPath);
+        }
     }
 
     public class FileProperties
@@ -80,7 +85,6 @@ namespace LocalizationParser
 
         private readonly char[] _russianAlphabeth = "абвгдеёжзийклмнопрстуфхцчшщъыьэюяАБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ".ToCharArray();
         private readonly char[] _englishAlphabeth = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ".ToCharArray();
-        private readonly char[] _specialSymbols = "".ToCharArray();
 
         private string ReadFromFile(StreamReader streamReader)
         {
@@ -97,24 +101,20 @@ namespace LocalizationParser
         private string CutString(string input)
         {
             string output = string.Empty;
-            int start = 0;
-            int stop = 0;
-            int index = input.IndexOfAny(_russianAlphabeth) - 1;
-            if (input[index] == '"')
-                start = index + 1;
-            index = input.LastIndexOfAny(_russianAlphabeth);
-            int index2 = input.IndexOfAny(_englishAlphabeth, index);
-            if (index2 >= 0)
+            int startRussian = 0;
+            int stopRussian = 0;
+            int startString = 0;
+            int stopString = 0;
+            if (!input.StartsWith("<!--"))
             {
-                stop = input.LastIndexOf('"', index2, index2 - index);
-            }
-            else
-            {
+                startRussian = input.IndexOfAny(_russianAlphabeth);
+                startString = input.LastIndexOf('"', startRussian) + 1;
 
-                stop = input.LastIndexOf('"');
+                stopRussian = input.LastIndexOfAny(_russianAlphabeth);
+                stopString = input.IndexOf('"', stopRussian);
+
+                output = input.Substring(startString, stopString - startString);
             }
-            if(stop > start)
-                output = input.Substring(start, stop - start);
             return output;
         }
         public void Writer(string path, string dirString, System.Windows.Controls.TextBox textBox)
@@ -163,7 +163,8 @@ namespace LocalizationParser
                             workSheet.Cells[row, "A"] = Path.GetFullPath(dirString);
                             workSheet.Cells[row, "B"] = Path.GetFileNameWithoutExtension(dirString);
                             workSheet.Cells[row, "C"] = s;
-                            workSheet.Cells[row, "D"] = CutString(s);
+                            if(FileProperties.Extension=="*.xaml")
+                                workSheet.Cells[row, "D"] = CutString(s);
                             row++;
                         }
                     }
