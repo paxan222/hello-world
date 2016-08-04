@@ -4,14 +4,14 @@
         Title="MainWindow" Height="536" Width="525" ResizeMode="NoResize">
     <Grid>
         <Label Content="Path" HorizontalAlignment="Left" Margin="10,10,0,0" VerticalAlignment="Top"/>
-        <TextBlock Name="TextBlock" HorizontalAlignment="Left" Margin="49,10,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="460" Height="26"/>
-        <Button Content="Choose" HorizontalAlignment="Left" Margin="10,41,0,0" VerticalAlignment="Top" Width="75" Click="Button_Click"/>
-        <Button Content="Parse" HorizontalAlignment="Left" Margin="215,41,0,0" VerticalAlignment="Top" Width="75" Click="Button_Click_1"/>
-        <TextBox Name="TextBox" IsReadOnly="True" HorizontalAlignment="Left" Height="430" Margin="10,68,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="499"/>
-        <ComboBox Name="ComboBox" HorizontalAlignment="Left" Margin="90,41,0,0" VerticalAlignment="Top" Width="120" SelectedIndex="0" SelectionChanged="ComboBox_SelectionChanged">
+        <TextBlock Name="TextBlock" HorizontalAlignment="Left" Margin="27,38,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="460" Height="26"/>
+        <Button Content="Choose" HorizontalAlignment="Left" Margin="10,69,0,0" VerticalAlignment="Top" Width="75" Click="Button_Click"/>
+        <Button Content="Parse" HorizontalAlignment="Left" Margin="215,69,0,0" VerticalAlignment="Top" Width="75" Click="Button_Click_1"/>
+        <TextBox Name="TextBox" IsReadOnly="True" HorizontalAlignment="Left" Height="402" Margin="10,96,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="477"/>
+        <ComboBox Name="ComboBox" HorizontalAlignment="Left" Margin="90,69,0,0" VerticalAlignment="Top" Width="120" SelectedIndex="0" SelectionChanged="ComboBox_SelectionChanged">
             <TextBlock Text="*.cs"/>
             <TextBlock Text="*.xaml"/>
         </ComboBox>
-        <Button Content="Open folder" HorizontalAlignment="Left" Margin="295,41,0,0" VerticalAlignment="Top" Width="75" Click="Button_Click2"/>
+        <Button Content="Open folder" HorizontalAlignment="Left" Margin="295,69,0,0" VerticalAlignment="Top" Width="75" Click="Button_Click2"/>
     </Grid>
 </Window>

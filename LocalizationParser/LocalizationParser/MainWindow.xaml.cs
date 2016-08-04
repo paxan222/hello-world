@@ -25,7 +25,7 @@ namespace LocalizationParser
         private void Button_Click(object sender, RoutedEventArgs e)
         {
             var dialog = new FolderBrowserDialog();
-            dialog.RootFolder = Environment.SpecialFolder.MyComputer;
+            dialog.SelectedPath = FileProperties.Path;
             if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
             {
                 FileProperties.Path = dialog.SelectedPath;
@@ -35,7 +35,7 @@ namespace LocalizationParser
         
         private void Button_Click_1(object sender, RoutedEventArgs e)
         {
-            string[] dirStrings = Directory.GetFiles(FileProperties.Path,FileProperties.Extension, SearchOption.AllDirectories);
+            string[] dirStrings = Directory.GetFiles(FileProperties.Path, FileProperties.Extension, SearchOption.AllDirectories);
             TextBox.Text = string.Empty;
             var parse = new Parse();
             var directoryInfo = new DirectoryInfo(FileProperties.RootPath);
@@ -74,10 +74,14 @@ namespace LocalizationParser
 
     public class FileProperties
     {
-        public static string Path = "D:\\repo\\Trank\\Projects\\FireAdministrator\\Modules\\StrazhModule\\";
+        public static string Path = "D:\\repo\\Trank\\Projects\\";
         public static string RootPath = "D:\\repo\\LocalizedTrank\\";
         public static string Extension = "*.cs";
         public static string FileName = string.Empty;
+        public enum PathEnum
+        {
+            Path
+        }
     }
     public class Parse
     {
@@ -112,8 +116,14 @@ namespace LocalizationParser
 
                 stopRussian = input.LastIndexOfAny(_russianAlphabeth);
                 stopString = input.IndexOf('"', stopRussian);
-
-                output = input.Substring(startString, stopString - startString);
+                if (stopString > startString)
+                {
+                    output = input.Substring(startString, stopString - startString);
+                }
+                else
+                {
+                    output = input;
+                }
             }
             return output;
         }
