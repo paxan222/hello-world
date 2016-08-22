@@ -3,6 +3,7 @@ using System.Collections;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Web.Caching;
 using System.Windows;
@@ -32,10 +33,11 @@ namespace LocalizationParser
                 TextBlock.Text = FileProperties.Path;
             }
         }
-        
+
         private void Button_Click_1(object sender, RoutedEventArgs e)
         {
-            string[] dirStrings = Directory.GetFiles(FileProperties.Path, FileProperties.Extension, SearchOption.AllDirectories);
+            string[] dirStrings = Directory.GetFiles(FileProperties.Path, FileProperties.Extension,
+                SearchOption.AllDirectories);
             TextBox.Text = string.Empty;
             var parse = new Parse();
             var directoryInfo = new DirectoryInfo(FileProperties.RootPath);
@@ -49,14 +51,14 @@ namespace LocalizationParser
             foreach (var dirString in dirStrings)
             {
                 string path = FileProperties.RootPath + Directory.GetParent(dirString).Name;
-                parse.Writer(path,dirString,TextBox);
+                parse.Writer(path, dirString, TextBox);
             }
         }
 
         private void ComboBox_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
         {
             switch (ComboBox.SelectedIndex)
-            {   
+            {
                 case 0:
                     FileProperties.Extension = "*.cs";
                     break;
@@ -78,10 +80,6 @@ namespace LocalizationParser
         public static string RootPath = "D:\\repo\\LocalizedTrank\\";
         public static string Extension = "*.cs";
         public static string FileName = string.Empty;
-        public enum PathEnum
-        {
-            Path
-        }
     }
     public class Parse
     {
@@ -127,9 +125,10 @@ namespace LocalizationParser
             }
             return output;
         }
+
         public void Writer(string path, string dirString, System.Windows.Controls.TextBox textBox)
         {
-            var streamReader = new StreamReader(dirString);
+            var streamReader = new StreamReader(dirString, Encoding.GetEncoding("windows-1251"));
             CheckExcel();
             string tmp = ReadFromFile(streamReader);
             if (tmp != string.Empty)
@@ -173,7 +172,7 @@ namespace LocalizationParser
                             workSheet.Cells[row, "A"] = Path.GetFullPath(dirString);
                             workSheet.Cells[row, "B"] = Path.GetFileNameWithoutExtension(dirString);
                             workSheet.Cells[row, "C"] = s;
-                            if(FileProperties.Extension=="*.xaml")
+                            //if(FileProperties.Extension=="*.xaml")
                                 workSheet.Cells[row, "D"] = CutString(s);
                             row++;
                         }
