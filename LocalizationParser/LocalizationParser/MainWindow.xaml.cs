@@ -126,9 +126,20 @@ namespace LocalizationParser
             return output;
         }
 
+        public Encoding GetEncoding(string filename)
+        {
+            Stream fs = new FileStream(filename, FileMode.Open, FileAccess.Read);
+            var sr = new StreamReader(fs);
+            if (ReadFromFile(sr) != string.Empty)
+            {
+                return Encoding.UTF8;
+            }
+            return Encoding.GetEncoding("windows-1251");
+        }
         public void Writer(string path, string dirString, System.Windows.Controls.TextBox textBox)
         {
-            var streamReader = new StreamReader(dirString, Encoding.GetEncoding("windows-1251"));
+            Encoding enc = GetEncoding(dirString);
+            var streamReader = new StreamReader(dirString, enc);
             CheckExcel();
             string tmp = ReadFromFile(streamReader);
             if (tmp != string.Empty)
