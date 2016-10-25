@@ -1,13 +1,14 @@
 ﻿using System;
 using System.IO;
 using System.Net;
+using System.Net.Sockets;
 
 namespace Sniffer.Protocols
 {
 	/// <summary>
 	/// Класс, описывающий структуру IP пакета
 	/// </summary>
-	class IP
+	class Ip
 	{
 		#region Переменные
 
@@ -129,7 +130,7 @@ namespace Sniffer.Protocols
 		/// </summary>
 		/// <param name="bytesBuffer">сообщение</param>
 		/// <param name="nReceive">длина сообщения</param>
-		public IP(byte[] bytesBuffer, int nReceive)
+		public Ip(byte[] bytesBuffer, int nReceive)
 		{
 			var memoryStream = new MemoryStream(bytesBuffer, 0, nReceive);
 			var binaryReader = new BinaryReader(memoryStream);
@@ -192,43 +193,42 @@ namespace Sniffer.Protocols
 
 		#region Перечисления
 
-		public enum Version
-		{
-			IPv4,
-			IPv6
-		}
-
+		/// <summary>
+		/// Задержка
+		/// </summary>
 		public enum Delay
 		{
 			Normal = 0,
 			Low = 1
 		}
 
+		/// <summary>
+		/// Пропускная способность
+		/// </summary>
 		public enum Throughput
 		{
 			Low = 0,
 			High = 1
 		}
 
+		/// <summary>
+		/// Надеждность
+		/// </summary>
 		public enum Reliability
 		{
 			Normal = 0,
 			High = 1
 		}
 
+		/// <summary>
+		/// ECN
+		/// </summary>
 		public enum ECN
 		{
 			Non_ECT,
 			ECT0,
 			ECT1,
 			CE
-		}
-
-		public enum Protocol
-		{
-			TCP,
-			UDP,
-			Unknown
 		}
 
 		#endregion
@@ -238,18 +238,18 @@ namespace Sniffer.Protocols
 		/// <summary>
 		/// Версия
 		/// </summary>
-		public Version IpVersion
+		public ProtocolType IpVersion
 		{
 			get
 			{
 				switch (_version)
 				{
 					case 4:
-						return Version.IPv4;
+						return ProtocolType.IPv4;
 					case 6:
-						return Version.IPv6;
+						return ProtocolType.IPv6;
 					default:
-						throw new ArgumentOutOfRangeException();
+						return ProtocolType.Unknown;
 				}
 			}
 		}
@@ -425,18 +425,18 @@ namespace Sniffer.Protocols
 		/// <summary>
 		/// Протокол
 		/// </summary>
-		public Protocol DataProtocol
+		public ProtocolType DataProtocol
 		{
 			get
 			{
 				switch (_protocol)
 				{
 					case 6:
-						return Protocol.TCP;
+						return ProtocolType.Tcp;
 					case 17:
-						return Protocol.UDP;
+						return ProtocolType.Udp;
 					default:
-						return Protocol.Unknown;
+						return ProtocolType.Unknown;
 				}
 			}
 		}
@@ -503,7 +503,7 @@ namespace Sniffer.Protocols
 		{
 			get
 			{
-				return (ushort) (_totalLength - _headerLength);
+				return (ushort)(_totalLength - _headerLength);
 			}
 		}
 		#endregion

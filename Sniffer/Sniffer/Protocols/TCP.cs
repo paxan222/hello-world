@@ -6,7 +6,7 @@ namespace Sniffer.Protocols
 	/// <summary>
 	/// Класс, описывающий структуру TCP пакета
 	/// </summary>
-	class TCP
+	class Tcp
 	{
 		#region Переменные
 
@@ -124,7 +124,7 @@ namespace Sniffer.Protocols
 		/// </summary>
 		/// <param name="bytesBuffer">сообщение</param>
 		/// <param name="nReceive">длина сообщения</param>
-		public TCP(byte[] bytesBuffer, int nReceive)
+		public Tcp(byte[] bytesBuffer, int nReceive)
 		{
 			var memoryStream = new MemoryStream(bytesBuffer, 0, nReceive);
 			var binaryReader = new BinaryReader(memoryStream);
