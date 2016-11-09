@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using System.Net;
 
 namespace Sniffer.Protocols
 {
@@ -49,10 +50,10 @@ namespace Sniffer.Protocols
 			var memoryStream = new MemoryStream(bytesBuffer, 0, nReceive);
 			var binaryReader = new BinaryReader(memoryStream);
 
-			_sourcePort = binaryReader.ReadUInt16();
-			_destinationPort = binaryReader.ReadUInt16();
-			_length = binaryReader.ReadUInt16();
-			_checksum = binaryReader.ReadUInt16();
+			_sourcePort = (ushort)IPAddress.NetworkToHostOrder(binaryReader.ReadInt16());
+			_destinationPort = (ushort)IPAddress.NetworkToHostOrder(binaryReader.ReadInt16());
+			_length = (ushort)IPAddress.NetworkToHostOrder(binaryReader.ReadInt16());
+			_checksum = (ushort)IPAddress.NetworkToHostOrder(binaryReader.ReadUInt16());
 
 			_data = new byte[4096];
 
@@ -66,7 +67,7 @@ namespace Sniffer.Protocols
 		/// <summary>
 		/// Порт источника
 		/// </summary>
-		public int SourcePort
+		public ushort SourcePort
 		{
 			get
 			{
@@ -77,7 +78,7 @@ namespace Sniffer.Protocols
 		/// <summary>
 		/// Порт назначения
 		/// </summary>
-		public int DestinationPort
+		public ushort DestinationPort
 		{
 			get
 			{

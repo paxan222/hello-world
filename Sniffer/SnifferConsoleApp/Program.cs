@@ -16,6 +16,7 @@ namespace SnifferConsoleApp
 		private static string DestinationIpAddress;
 		private static string DestinationPort;
 		private static ProtocolType Protocol;
+		private static int Ttl;
 
 
 		static void Main(string[] args)
@@ -24,9 +25,9 @@ namespace SnifferConsoleApp
 			listner.OnNewPackage += Writeline;
 
 			listner.Start();
-			while(!listner.Message)
+			while (!listner.Message)
 			{
-				
+
 			}
 			while (listner.Message)
 			{
@@ -35,17 +36,19 @@ namespace SnifferConsoleApp
 				DestinationIpAddress = listner.DestinationIpAddress.ToString();
 				DestinationPort = listner.DestinationPort.ToString();
 				Protocol = listner.Protocol;
+				Ttl = listner.Ttl;
 			}
+			Console.WriteLine("Press any key to exit");
 			Console.ReadLine();
 			listner.Stop();
 		}
 
 		private static void Writeline()
 		{
-			if ((SourceIpAddress == "192.168.11.66") && (Protocol == ProtocolType.Udp))
+			if ((DestinationIpAddress == "192.168.11.66" && SourceIpAddress == "192.168.11.180") && (Protocol == ProtocolType.Tcp))
 			{
-				Console.WriteLine("Time:{0}\t{1}\t{2}:{3}\t{4}:{5}", DateTime.Now.ToString("hh:mm:ss.ffff"), Protocol,
-						SourceIpAddress, SourcePort, DestinationIpAddress, DestinationPort);
+				Console.WriteLine("Time:{0}\t{1}\t{2}:{3}\t{4}:{5}\t{6}", DateTime.Now.ToString("hh:mm:ss.ffff"), Protocol,
+						SourceIpAddress, SourcePort, DestinationIpAddress, DestinationPort, Ttl);
 			}
 		}
 

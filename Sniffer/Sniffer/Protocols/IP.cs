@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Collections;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 
@@ -77,12 +79,12 @@ namespace Sniffer.Protocols
 		/// <summary>
 		/// 3 бита - флаг
 		/// </summary>
-		public byte _flags;
+		private byte _flags;
 
 		/// <summary>
 		/// 13 бит - смещение фрагмента
 		/// </summary>
-		public ushort _fragmentOffset;
+		private ushort _fragmentOffset;
 
 		#endregion
 		
@@ -121,6 +123,10 @@ namespace Sniffer.Protocols
 		/// </summary>
 		private readonly byte[] _data;
 
+		/// <summary>
+		/// Флаг проверки контрольной суммы
+		/// </summary>
+		private bool _verificationChecksumError;
 		#endregion
 
 		#region Конструктор
@@ -173,7 +179,6 @@ namespace Sniffer.Protocols
 			_fragmentOffset >>= 3;
 
 			_flags = (byte)(_flagsAndFragmentOffset>>13);
-
 			_ttl = binaryReader.ReadByte();
 			_protocol = binaryReader.ReadByte();
 			_headerChecksum = (ushort)IPAddress.NetworkToHostOrder(binaryReader.ReadInt16());
@@ -187,6 +192,7 @@ namespace Sniffer.Protocols
 			//}
 			_data = new byte[4096];
 			Array.Copy(bytesBuffer,_headerLength, _data, 0, _totalLength-_headerLength);
+			
 		}
 
 		#endregion
@@ -233,6 +239,10 @@ namespace Sniffer.Protocols
 
 		#endregion
 
+		#region Приватные методы
+
+		#endregion
+		
 		#region Методы
 
 		/// <summary>

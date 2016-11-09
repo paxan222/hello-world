@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
+using System.Net;
 
 namespace Sniffer.Protocols
 {
@@ -129,10 +131,10 @@ namespace Sniffer.Protocols
 			var memoryStream = new MemoryStream(bytesBuffer, 0, nReceive);
 			var binaryReader = new BinaryReader(memoryStream);
 
-			_sourcePort = binaryReader.ReadUInt16();
-			_destinationPort = binaryReader.ReadUInt16();
-			_sequenceNumber = binaryReader.ReadUInt32();
-			_acknowladgementNumber = binaryReader.ReadUInt32();
+			_sourcePort = (ushort)IPAddress.HostToNetworkOrder(binaryReader.ReadInt16());
+			_destinationPort = (ushort)IPAddress.HostToNetworkOrder(binaryReader.ReadInt16());
+			_sequenceNumber = (uint)IPAddress.HostToNetworkOrder(binaryReader.ReadInt32());
+			_acknowladgementNumber = (uint)IPAddress.HostToNetworkOrder(binaryReader.ReadInt32());
 
 			var tmpDataOffset = binaryReader.ReadByte();
 
@@ -180,9 +182,9 @@ namespace Sniffer.Protocols
 			_fin <<= 7;
 			_fin >>= 7;
 
-			_windowSize = binaryReader.ReadUInt16();
-			_checkSum = binaryReader.ReadUInt16();
-			_urgentPointer = binaryReader.ReadUInt16();
+			_windowSize = (ushort)IPAddress.NetworkToHostOrder(binaryReader.ReadInt16());
+			_checkSum = (ushort)IPAddress.NetworkToHostOrder(binaryReader.ReadInt16());
+			_urgentPointer = (ushort)IPAddress.NetworkToHostOrder(binaryReader.ReadInt16());
 
 			//if (_dataOffset > 20)
 			//{
@@ -191,16 +193,43 @@ namespace Sniffer.Protocols
 			//}
 			_data = new byte[4096];
 			Array.Copy(bytesBuffer, _dataOffset, _data, 0, nReceive - _dataOffset);
+			_calculatedSum = CalculateChecksum(bytesBuffer, nReceive);
 		}
 
 		#endregion
+
+		#region Приватные методы
 		
+		/// <summary>
+		/// Посчитанная сумма
+		/// </summary>
+		private string _calculatedSum;
+
+		/// <summary>
+		/// Расчет контрольной суммы
+		/// </summary>
+		/// <param name="bytesBuffer"></param>
+		/// <param name="nReceive"></param>
+		/// <returns></returns>
+		private string CalculateChecksum(byte[] bytesBuffer, int nReceive)
+		{
+			var sum = 0;
+			for (var i = 0; i < nReceive; i = i + 2)
+			{
+				var tmpString = bytesBuffer[i].ToString("X2") + bytesBuffer[i + 1].ToString("X2");
+				sum += Convert.ToInt32(tmpString, 16);
+			}
+			return sum.ToString("X2");
+		}
+
+		#endregion
+
 		#region Методы
 
 		/// <summary>
 		/// Порт источника
 		/// </summary>
-		public int SourcePort
+		public ushort SourcePort
 		{
 			get
 			{
@@ -211,7 +240,7 @@ namespace Sniffer.Protocols
 		/// <summary>
 		/// Порт назначения
 		/// </summary>
-		public int DestinationPort
+		public ushort DestinationPort
 		{
 			get
 			{
@@ -429,6 +458,16 @@ namespace Sniffer.Protocols
 			}
 		}
 
+		/// <summary>
+		/// Посчитанная сумма
+		/// </summary>
+		public string CalculatedSum
+		{
+			get
+			{
+				return _calculatedSum;
+			}
+		}
 	#endregion
 	}
 }
