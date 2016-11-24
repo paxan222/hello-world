@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Net;
 
@@ -117,6 +116,11 @@ namespace Sniffer.Protocols
 		/// </summary>
 		private readonly byte[] _data = new byte[4096];
 
+		/// <summary>
+		/// Исключение
+		/// </summary>
+		private Exception _tcpException;
+
 		#endregion
 		
 		#region Конструктор
@@ -128,73 +132,90 @@ namespace Sniffer.Protocols
 		/// <param name="nReceive">длина сообщения</param>
 		public Tcp(byte[] bytesBuffer, int nReceive)
 		{
-			var memoryStream = new MemoryStream(bytesBuffer, 0, nReceive);
-			var binaryReader = new BinaryReader(memoryStream);
+			try
+			{
+				var memoryStream = new MemoryStream(bytesBuffer, 0, nReceive);
+				var binaryReader = new BinaryReader(memoryStream);
 
-			_sourcePort = (ushort)IPAddress.HostToNetworkOrder(binaryReader.ReadInt16());
-			_destinationPort = (ushort)IPAddress.HostToNetworkOrder(binaryReader.ReadInt16());
-			_sequenceNumber = (uint)IPAddress.HostToNetworkOrder(binaryReader.ReadInt32());
-			_acknowladgementNumber = (uint)IPAddress.HostToNetworkOrder(binaryReader.ReadInt32());
+				_sourcePort = (ushort)IPAddress.HostToNetworkOrder(binaryReader.ReadInt16());
+				_destinationPort = (ushort)IPAddress.HostToNetworkOrder(binaryReader.ReadInt16());
+				_sequenceNumber = (uint)IPAddress.HostToNetworkOrder(binaryReader.ReadInt32());
+				_acknowladgementNumber = (uint)IPAddress.HostToNetworkOrder(binaryReader.ReadInt32());
 
-			var tmpDataOffset = binaryReader.ReadByte();
+				var tmpDataOffset = binaryReader.ReadByte();
 
-			_dataOffset = tmpDataOffset;
-			_dataOffset >>= 4;
-			_dataOffset *= 4;
+				_dataOffset = tmpDataOffset;
+				_dataOffset >>= 4;
+				_dataOffset *= 4;
 
-			_reserved = tmpDataOffset;
-			_reserved <<= 4;
-			_reserved >>= 5;
+				_reserved = tmpDataOffset;
+				_reserved <<= 4;
+				_reserved >>= 5;
 
-			_ns = tmpDataOffset;
-			_ns <<= 7;
-			_ns >>= 7;
+				_ns = tmpDataOffset;
+				_ns <<= 7;
+				_ns >>= 7;
 
-			var tmpFlags = binaryReader.ReadByte();
-			_cwr = tmpFlags;
-			_cwr >>= 7;
+				var tmpFlags = binaryReader.ReadByte();
+				_cwr = tmpFlags;
+				_cwr >>= 7;
 			
-			_ece = tmpFlags;
-			_ece <<= 1;
-			_ece >>= 7;
+				_ece = tmpFlags;
+				_ece <<= 1;
+				_ece >>= 7;
 
-			_urg = tmpFlags;
-			_urg <<= 2;
-			_urg >>= 7;
+				_urg = tmpFlags;
+				_urg <<= 2;
+				_urg >>= 7;
 
-			_ack = tmpFlags;
-			_ack <<= 3;
-			_ack >>= 7;
+				_ack = tmpFlags;
+				_ack <<= 3;
+				_ack >>= 7;
 
-			_psh = tmpFlags;
-			_psh <<= 4;
-			_psh >>= 7;
+				_psh = tmpFlags;
+				_psh <<= 4;
+				_psh >>= 7;
 
-			_rst = tmpFlags;
-			_rst <<= 5;
-			_rst >>= 7;
+				_rst = tmpFlags;
+				_rst <<= 5;
+				_rst >>= 7;
 
-			_syn = tmpFlags;
-			_syn <<= 6;
-			_syn >>= 7;
+				_syn = tmpFlags;
+				_syn <<= 6;
+				_syn >>= 7;
 
-			_fin = tmpFlags;
-			_fin <<= 7;
-			_fin >>= 7;
+				_fin = tmpFlags;
+				_fin <<= 7;
+				_fin >>= 7;
 
-			_windowSize = (ushort)IPAddress.NetworkToHostOrder(binaryReader.ReadInt16());
-			_checkSum = (ushort)IPAddress.NetworkToHostOrder(binaryReader.ReadInt16());
-			_urgentPointer = (ushort)IPAddress.NetworkToHostOrder(binaryReader.ReadInt16());
+				_windowSize = (ushort)IPAddress.NetworkToHostOrder(binaryReader.ReadInt16());
+				_checkSum = (ushort)IPAddress.NetworkToHostOrder(binaryReader.ReadInt16());
+				_urgentPointer = (ushort)IPAddress.NetworkToHostOrder(binaryReader.ReadInt16());
 
-			//if (_dataOffset > 20)
-			//{
-			//	var position = (int)memoryStream.Position;
-			//	var tmpOptions = binaryReader.ReadBytes(_dataOffset - position);
-			//}
-			_data = new byte[4096];
-			Array.Copy(bytesBuffer, _dataOffset, _data, 0, nReceive - _dataOffset);
-			_calculatedSum = CalculateChecksum(bytesBuffer, nReceive);
+				//if (_dataOffset > 20)
+				//{
+				//	var position = (int)memoryStream.Position;
+				//	var tmpOptions = binaryReader.ReadBytes(_dataOffset - position);
+				//}
+				_data = new byte[4096];
+				Array.Copy(bytesBuffer, _dataOffset, _data, 0, nReceive - _dataOffset);
+				_calculatedSum = CalculateChecksum(bytesBuffer, nReceive);
+			}
+			catch (Exception exception)
+			{
+				_tcpException = exception;
+				OnException();
+			}
 		}
+
+		#endregion
+
+		#region События
+		
+		/// <summary>
+		/// Событие при исключении
+		/// </summary>
+		public event SocketListner.SocketListnerEventHandler OnException;
 
 		#endregion
 
@@ -468,6 +489,18 @@ namespace Sniffer.Protocols
 				return _calculatedSum;
 			}
 		}
-	#endregion
+
+		/// <summary>
+		/// Исключение
+		/// </summary>
+		public Exception TcpException
+		{
+			get
+			{
+				return _tcpException;
+			}
+		}
+
+		#endregion
 	}
 }

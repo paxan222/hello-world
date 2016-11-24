@@ -1,7 +1,5 @@
 ﻿using System;
-using System.Collections;
 using System.IO;
-using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 
@@ -127,6 +125,12 @@ namespace Sniffer.Protocols
 		/// Флаг проверки контрольной суммы
 		/// </summary>
 		private bool _verificationChecksumError;
+
+		/// <summary>
+		/// Исключение
+		/// </summary>
+		private Exception _ipException;
+
 		#endregion
 
 		#region Конструктор
@@ -138,61 +142,68 @@ namespace Sniffer.Protocols
 		/// <param name="nReceive">длина сообщения</param>
 		public Ip(byte[] bytesBuffer, int nReceive)
 		{
-			var memoryStream = new MemoryStream(bytesBuffer, 0, nReceive);
-			var binaryReader = new BinaryReader(memoryStream);
-			var tmpVersionAndHeaderLength = binaryReader.ReadByte();
+			try
+			{
+				var memoryStream = new MemoryStream(bytesBuffer, 0, nReceive);
+				var binaryReader = new BinaryReader(memoryStream);
+				var tmpVersionAndHeaderLength = binaryReader.ReadByte();
 
-			_version = tmpVersionAndHeaderLength;
-			_version >>= 4;
+				_version = tmpVersionAndHeaderLength;
+				_version >>= 4;
 			
-			_headerLength = tmpVersionAndHeaderLength;
-			_headerLength <<= 4; // сдвигаем влево 4 раза
-			_headerLength >>= 4; // сдвигаем вправо 4 раза
-			_headerLength *= 4; // получаем размер заголовка в байтах
+				_headerLength = tmpVersionAndHeaderLength;
+				_headerLength <<= 4; // сдвигаем влево 4 раза
+				_headerLength >>= 4; // сдвигаем вправо 4 раза
+				_headerLength *= 4; // получаем размер заголовка в байтах
 
-			_tos = binaryReader.ReadByte();
-			_precedence = _tos;
-			_precedence >>= 5;
+				_tos = binaryReader.ReadByte();
+				_precedence = _tos;
+				_precedence >>= 5;
 
-			_delay = _tos;
-			_delay <<= 3;
-			_delay >>= 7;
+				_delay = _tos;
+				_delay <<= 3;
+				_delay >>= 7;
 
-			_throughtput = _tos;
-			_throughtput <<= 4;
-			_throughtput >>= 7;
+				_throughtput = _tos;
+				_throughtput <<= 4;
+				_throughtput >>= 7;
 
-			_reliability = _tos;
-			_reliability <<= 5;
-			_reliability >>= 7;
+				_reliability = _tos;
+				_reliability <<= 5;
+				_reliability >>= 7;
 
-			_ecn = _tos;
-			_ecn <<= 6;
-			_ecn >>= 6;
-			_totalLength=(ushort)IPAddress.NetworkToHostOrder(binaryReader.ReadInt16());
+				_ecn = _tos;
+				_ecn <<= 6;
+				_ecn >>= 6;
+				_totalLength=(ushort)IPAddress.NetworkToHostOrder(binaryReader.ReadInt16());
 
-			_identifier = (ushort)IPAddress.NetworkToHostOrder(binaryReader.ReadInt16());
+				_identifier = (ushort)IPAddress.NetworkToHostOrder(binaryReader.ReadInt16());
 
-			_flagsAndFragmentOffset = (ushort)IPAddress.NetworkToHostOrder(binaryReader.ReadInt16());
-			_fragmentOffset = _flagsAndFragmentOffset;
-			_fragmentOffset <<= 3;
-			_fragmentOffset >>= 3;
+				_flagsAndFragmentOffset = (ushort)IPAddress.NetworkToHostOrder(binaryReader.ReadInt16());
+				_fragmentOffset = _flagsAndFragmentOffset;
+				_fragmentOffset <<= 3;
+				_fragmentOffset >>= 3;
 
-			_flags = (byte)(_flagsAndFragmentOffset>>13);
-			_ttl = binaryReader.ReadByte();
-			_protocol = binaryReader.ReadByte();
-			_headerChecksum = (ushort)IPAddress.NetworkToHostOrder(binaryReader.ReadInt16());
-			_sourceIpAddress = binaryReader.ReadUInt32();
-			_destinationIpAddress = binaryReader.ReadUInt32();
+				_flags = (byte)(_flagsAndFragmentOffset>>13);
+				_ttl = binaryReader.ReadByte();
+				_protocol = binaryReader.ReadByte();
+				_headerChecksum = (ushort)IPAddress.NetworkToHostOrder(binaryReader.ReadInt16());
+				_sourceIpAddress = binaryReader.ReadUInt32();
+				_destinationIpAddress = binaryReader.ReadUInt32();
 
-			//if (_headerLength > 20)
-			//{
-			//	var position = (int)memoryStream.Position;
-			//	var tmpOptions = binaryReader.ReadBytes(_headerLength - position);
-			//}
-			_data = new byte[4096];
-			Array.Copy(bytesBuffer,_headerLength, _data, 0, _totalLength-_headerLength);
-			
+				//if (_headerLength > 20)
+				//{
+				//	var position = (int)memoryStream.Position;
+				//	var tmpOptions = binaryReader.ReadBytes(_headerLength - position);
+				//}
+				_data = new byte[4096];
+				Array.Copy(bytesBuffer,_headerLength, _data, 0, _totalLength-_headerLength);
+			}
+			catch (Exception exception)
+			{
+				_ipException = exception;
+				OnException();
+			}
 		}
 
 		#endregion
@@ -236,6 +247,15 @@ namespace Sniffer.Protocols
 			ECT1,
 			CE
 		}
+
+		#endregion
+
+		#region События
+		
+		/// <summary>
+		/// Событие при исключении
+		/// </summary>
+		public event SocketListner.SocketListnerEventHandler OnException;
 
 		#endregion
 
@@ -516,6 +536,18 @@ namespace Sniffer.Protocols
 				return (ushort)(_totalLength - _headerLength);
 			}
 		}
+
+		/// <summary>
+		/// Исключение
+		/// </summary>
+		public Exception IpException
+		{
+			get
+			{
+				return _ipException;
+			}
+		}
+
 		#endregion
 	}
 }

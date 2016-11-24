@@ -1,9 +1,8 @@
 ﻿using System;
-using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
-using System.Security.Policy;
 using Sniffer.Protocols;
 
 namespace Sniffer
@@ -11,71 +10,39 @@ namespace Sniffer
 	/// <summary>
 	/// Общий класс сниффера
 	/// </summary>
-    public class SocketListner
-    {
-	    #region Переменные
-
-	    /// <summary>
-	    /// Сокет
-	    /// </summary>
-	    private Socket _socket;
-
-	    /// <summary>
-	    /// Массив с сообщением
-	    /// </summary>
-	    private byte[] _data = new byte[4096];
-
-	    /// <summary>
-	    /// Ip адрес хоста
-	    /// </summary>
-	    private IPAddress _hostIpAddress;
-
-	    /// <summary>
-	    /// Сетевой адрес
-	    /// </summary>
-	    private EndPoint _endPoint;
-
-	    /// <summary>
-	    /// Входные данные, необходимые для операции задания низкоуровневых операционных режимов
-	    /// </summary>
-	    private readonly byte[] optionInValue = new byte[4] {1, 0, 0, 0};
-
-	    /// <summary>
-	    /// Выходные данные, возвращенные операцией задания низкоуровневых операционных режимов
-	    /// </summary>
-	    private readonly byte[] optionOutValue = new byte[4] {1, 0, 0, 0};
-
-	    /// <summary>
-	    /// Ip адрес источника
-	    /// </summary>
-	    private IPAddress _sourceIpAddress;
-
-	    /// <summary>
-	    /// Порт источника
-	    /// </summary>
-	    private ushort _sourcePort;
-
-	    /// <summary>
-	    /// Ip адрес назначения
-	    /// </summary>
-	    private IPAddress _desinationIpAddress;
-
-	    /// <summary>
-	    /// Порт назначения
-	    /// </summary>
-	    private ushort _destinationPort;
+	public class SocketListner
+	{
+		#region Переменные
 
 		/// <summary>
-		/// Протокол
+		/// Сокет
 		/// </summary>
-		private ProtocolType _protocol;
+		private Socket _socket;
 
 		/// <summary>
-		/// Логгер
+		/// Массив с сообщением
 		/// </summary>
-		private Logger _logger;
-		private Logger _loggerIn;
-		private Logger _loggerOut;
+		private static byte[] _data = new byte[4096];
+
+		/// <summary>
+		/// Ip адрес хоста
+		/// </summary>
+		private IPAddress _hostIpAddress;
+
+		/// <summary>
+		/// Сетевой адрес
+		/// </summary>
+		private EndPoint _endPoint;
+
+		/// <summary>
+		/// Входные данные, необходимые для операции задания низкоуровневых операционных режимов
+		/// </summary>
+		private readonly byte[] _optionInValue = new byte[4] { 1, 0, 0, 0 };
+
+		/// <summary>
+		/// Выходные данные, возвращенные операцией задания низкоуровневых операционных режимов
+		/// </summary>
+		private readonly byte[] _optionOutValue = new byte[4] { 1, 0, 0, 0 };
 
 		/// <summary>
 		/// Флаг проверки приемки пакетов
@@ -83,74 +50,96 @@ namespace Sniffer
 		private bool _continueCapturing;
 
 		/// <summary>
-		/// Флаг приема первого сообщения
+		/// Исключение
 		/// </summary>
-		private bool _firstMessage;
+		private Exception _socketListnerException;
 
-		/// <summary>
-		/// Время жизни пакета
-		/// </summary>
+		#region Ip данные
+
+		private ProtocolType _version;
+		private int _headerLength;
+		private ushort _totalLength;
+		private ushort _identifier;
 		private int _ttl;
-	    #endregion
+		private ProtocolType _protocol;
+		private IPAddress _sourceIpAddress;
+		private IPAddress _destinationIpAddress;
+		private byte[] _dataIp;
+		private ushort _dataLength;
 
-	    #region Конструктор
+		#endregion
+
+		#region Tcp данные
+
+		private ushort _sourcePort;
+		private ushort _destinationPort;
+		private uint _isn;
+		private uint _an;
+		private int _windowSize;
+		private byte[] _dataTcp;
+
+		#endregion
+
+		private string _logsFolderPath;
+		#endregion
+
+		#region Конструктор
 
 		/// <summary>
 		/// Конструктор класса
 		/// </summary>
-	    public SocketListner()
-	    {
-		    _socket = new Socket(AddressFamily.InterNetwork, SocketType.Raw, ProtocolType.IP);
-		    var getHostName = Dns.GetHostName();
-		    var getHostEntry = Dns.GetHostEntry(getHostName);
-		    var addressList = getHostEntry.AddressList;
-		    var hostIpAddress = addressList.Where(x => x.AddressFamily.Equals(AddressFamily.InterNetwork));
-		    _hostIpAddress = hostIpAddress.FirstOrDefault();
-			_endPoint = new IPEndPoint(_hostIpAddress, 0);
-			//_logger = new Logger(@"log.txt",true);
-			//_loggerIn = new Logger(@"logIn.txt", true);
-			//_loggerOut = new Logger(@"logOut.txt", true);
-	    }
+		public SocketListner(string logsFolderPath)
+		{
+			_logsFolderPath = logsFolderPath;
+			try
+			{
+				_socket = new Socket(AddressFamily.InterNetwork, SocketType.Raw, ProtocolType.IP);
+				var getHostName = Dns.GetHostName();
+				var getHostEntry = Dns.GetHostEntry(getHostName);
+				var addressList = getHostEntry.AddressList;
+				var hostIpAddress = addressList.Where(x => x.AddressFamily.Equals(AddressFamily.InterNetwork));
+				_hostIpAddress = hostIpAddress.FirstOrDefault();
+				if (_hostIpAddress != null) _endPoint = new IPEndPoint(_hostIpAddress, 0);
+			}
+			catch (Exception exception)
+			{
+				_socketListnerException = exception;
+				OnException();
+			}
+		}
 
-	    #endregion
+		#endregion
 
-	    #region Приватные методы
-		
+		#region Приватные методы
+
+		//public static ManualResetEvent AllDone = new ManualResetEvent(false);
+		public int MessageNumber = 0;
+		private StreamWriter _swWriter;
 		/// <summary>
 		/// Прием сообщений
 		/// </summary>
 		/// <param name="ar"></param>
 		private void OnReceive(IAsyncResult ar)
 		{
+			if (!_continueCapturing) return;
 			try
 			{
+				//AllDone.Reset();
 				var nReceived = _socket.EndReceive(ar);
 				IpParser(_data, nReceived);
-				if (_continueCapturing)
-				{
-					//_logger.Add(Protocol, SourceIpAddress, SourcePort, DestinationIpAddress, DestinationPort, Ttl);
-					//_logger.Add("SYN:{0}\tSEQ:{1}\tACK:{2}\tACKNUM:{3}\tID:{4}\tFIN:{5}\tLEN:{6}", _synTcp, _seqNum, _ackTcp, _ackNum, _id, _finFlag, _length);
-					_firstMessage = true;
-					OnNewPackage();
-					_data = new byte[4096]; 
-					_socket.BeginReceive(_data, 0, _data.Length, SocketFlags.None, OnReceive, null);
-					
-				}
+				_swWriter.WriteLine("{0}\t{1}:{2}\t{3}:{4}\t{5}\t{6}\t{7}", DateTime.Now.ToString("hh:mm:ss.fffff"), _sourceIpAddress, _sourcePort, _destinationIpAddress, _destinationPort, _dataLength, _isn, _an );
+				MessageNumber++;
+				OnNewPackage();
+				_data = new byte[4096];
+				_socket.BeginReceive(_data, 0, _data.Length, SocketFlags.None, OnReceive, null);
+				//AllDone.WaitOne();
 			}
 			catch (Exception exception)
 			{
-				//_logger.Add("Time:{0}\t{1}",DateTime.Now.ToString("hh:mm:ss.ffff"),exception);
+				_socketListnerException = exception;
+				OnException();
 			}
 		}
-
-		private byte[] pseudoTcpHeader = new byte[4096];
-		private string sourceip;
-		private string destip;
-		private string reserved;
-		private string protocol;
-		private string tcplength;
-		private byte _finFlag;
-		private ushort _id;
 
 		/// <summary>
 		/// Парсер IP пакета
@@ -160,152 +149,99 @@ namespace Sniffer
 		private void IpParser(byte[] bytesBuffer, int nReceive)
 		{
 			var ip = new Ip(bytesBuffer, nReceive);
-			_sourceIpAddress = ip.SourceIpAddress;
-			_desinationIpAddress = ip.DestinationIpAddress;
-			
-			_ttl = ip.TTL;
-			_fragmentIp = ip.Flags;
-			_fragmentOffset = ip.FragmentOffset;
-			_length = ip.DataLength;
 
+			ip.OnException += IpException;
+			_socketListnerException = ip.IpException;
+
+			_version = ip.IpVersion;
+			_headerLength = ip.HeaderLength;
+			_totalLength = ip.TotalLength;
+			_identifier = ip.Identifier;
+			_ttl = ip.TTL;
 			_protocol = ip.DataProtocol;
-			
-			_id = ip.Identifier;
+			_sourceIpAddress = ip.SourceIpAddress;
+			_destinationIpAddress = ip.DestinationIpAddress;
+			_dataIp = ip.Data;
+			_dataLength = ip.DataLength;
 
 			switch (_protocol)
 			{
 				case ProtocolType.Tcp:
-					TcpParser(ip);
+					TcpParser();
 					break;
 				case ProtocolType.Udp:
 					if (ip.DataLength > 8)
 					{
-						UdpParser(ip);
+						UdpParser();
 					}
 					break;
 			}
 		}
 
-		private string PseudoHeaderTcpSum(byte[] bytesBuffer)
-		{
-			var source = bytesBuffer[12].ToString("X2") + bytesBuffer[13].ToString("X2");
-			var sum = Convert.ToInt32(source, 16);
-			source = bytesBuffer[14].ToString("X2") + bytesBuffer[15].ToString("X2");
-			sum += Convert.ToInt32(source, 16);
-
-			source = bytesBuffer[16].ToString("X2") + bytesBuffer[17].ToString("X2");
-			sum += Convert.ToInt32(source, 16);
-			source = bytesBuffer[18].ToString("X2") + bytesBuffer[19].ToString("X2");
-			sum += Convert.ToInt32(source, 16);
-
-			source = "00" + bytesBuffer[9].ToString("X2");
-			sum += Convert.ToInt32(source, 16);
-
-			sum += _length;
-			sum += Convert.ToInt32(tcplength, 16);
-
-			return sum.ToString("X2");
-		}
-
-		/// <summary>
-		/// проверка ошибок в контрльной сумме пакета
-		/// </summary>
-		/// <param name="sumhex"></param>
-		//private bool CheckSumIsCorrect(string sumhex)
-		//{
-		//	var charArr = sumhex.ToCharArray();
-		//	var i = 0;
-		//	var carryBits = string.Empty;
-		//	var lastpart = string.Empty;
-		//	//for (var i = 0; i < charArr.Length; i++)
-		//	//{
-				
-		//	//}
-		//	while (charArr[i] != 'F')
-		//	{
-		//		carryBits += charArr[i].ToString();
-
-		//		i++;
-		//	}
-		//	while (i != charArr.Length)
-		//	{
-		//		lastpart += charArr[i].ToString();
-		//		i++;
-		//	}
-		//	var sum = 0;
-		//	try
-		//	{
-		//		/// не учел суммы типа F2FF0D
-		//		if (carryBits == string.Empty)
-		//		{
-		//			Console.WriteLine("{0} from {1} to {2}", sumhex, _sourceIpAddress, _desinationIpAddress);
-		//		}
-		//		else
-		//		{
-		//			sum = Convert.ToInt32(carryBits, 16) + Convert.ToInt32(lastpart, 16);
-		//		}
-		//	}
-		//	catch (Exception exception)
-		//	{
-		//	}
-		//	if (sum == Math.Pow(16, lastpart.Length) - 1)					
-		//	{
-		//		return true;
-		//	}
-		//	return false;
-		//}
-
-
-		private byte _synTcp;
-		private byte _ackTcp;
-		private byte _fragmentIp;
-		private int _fragmentOffset;
-		private int _length;
-		private uint _ackNum;
-		private uint _seqNum;
-		private int count;
-
-		public string ServiceInfo()
-		{
-			return string.Format("SYN:{0}\tSEQ:{1}\tACK:{2}\tACKNUM:{3}\tID:{4}\tFIN:{5}\tLEN:{6}", _synTcp, _seqNum, _ackTcp, _ackNum, _id, _finFlag, _length);
-		}
-
 		/// <summary>
 		/// Парсер TCP пакета
 		/// </summary>
-		/// <param name="ip">ip пакет</param>
-		private void TcpParser(Ip ip)
+		private void TcpParser()
 		{
-			var bytesBuffer = ip.Data;
-			var nReceive = ip.DataLength;
+			var bytesBuffer = _dataIp;
+			var nReceive = _dataLength;
 			var tcp = new Tcp(bytesBuffer, nReceive);
 
-			tcplength = tcp.CalculatedSum;
-			_synTcp = tcp.SYN;
-			_ackTcp = tcp.ACK;
-			_seqNum = tcp.InitialSequenceNumber;
-			_ackNum = tcp.AcknowladgementNumber;
+			tcp.OnException += TcpException;
+			_socketListnerException = tcp.TcpException;
+
 			_sourcePort = tcp.SourcePort;
 			_destinationPort = tcp.DestinationPort;
-			_finFlag = tcp.FIN;
+			_isn = tcp.InitialSequenceNumber;
+			_an = tcp.AcknowladgementNumber;
+			_windowSize = tcp.WindowSize;
+			_dataTcp = tcp.Data;
+
 		}
 
 		/// <summary>
 		/// Парсер UDP пакета
 		/// </summary>
-		/// <param name="ip">ip пакет</param>
-		private void UdpParser(Ip ip)
+		private void UdpParser()
 		{
-			var bytesBuffer = ip.Data;
-			var nReceive = (int) ip.DataLength;
+			var bytesBuffer = _dataIp;
+			var nReceive = (int)_dataLength;
 			var udp = new UDP(bytesBuffer, nReceive);
+
+			udp.OnException += UdpException;
+			_socketListnerException = udp.UdpException;
+
 			_sourcePort = udp.SourcePort;
-			_destinationPort = udp.DestinationPort;			
+			_destinationPort = udp.DestinationPort;
 		}
 
-	    #endregion
+		/// <summary>
+		/// Обработчик исключения в Ip
+		/// </summary>
+		private void IpException()
+		{
+			OnException();
+		}
 
-	    #region Методы
+		/// <summary>
+		/// Обработчик исключения в Tcp
+		/// </summary>
+		private void TcpException()
+		{
+			OnException();
+		}
+
+		/// <summary>
+		/// Обработчик исключения в Udp
+		/// </summary>
+		private void UdpException()
+		{
+			OnException();
+		}
+
+		#endregion
+
+		#region События
 
 		/// <summary>
 		/// Делегат
@@ -317,32 +253,45 @@ namespace Sniffer
 		public event SocketListnerEventHandler OnNewPackage;
 
 		/// <summary>
-		/// Флаг получения первого сообщения
+		/// Событие при исключении
 		/// </summary>
-		public bool Message
-		{
-			get
-			{
-				return _firstMessage;
-			}
-		}
+		public event SocketListnerEventHandler OnException;
+
+		#endregion
+
+		#region Методы
 
 		/// <summary>
 		/// Старт сокета
 		/// </summary>
 		public void Start()
 		{
-			if (!_continueCapturing)
+			var filepath = Path.Combine(_logsFolderPath, string.Format("FullTraffic_{0}.txt", DateTime.Now.ToString("HH-mm-ss")));
+			_swWriter = new StreamWriter(filepath, false);
+			try
 			{
-				_continueCapturing = true;
-				_socket.Bind(_endPoint);
-				_socket.IOControl(IOControlCode.ReceiveAll, optionInValue, optionOutValue);
-				_socket.BeginReceive(_data, 0, _data.Length, SocketFlags.None, OnReceive, null);
+				if (!_continueCapturing)
+				{
+
+					_continueCapturing = true;
+					_socket.Bind(_endPoint);
+					_socket.IOControl(IOControlCode.ReceiveAll, _optionInValue, _optionOutValue);
+					_socket.BeginReceive(_data, 0, _data.Length, SocketFlags.None, OnReceive, null);
+
+				}
+				else
+				{
+					_continueCapturing = false;
+					_socket.Shutdown(SocketShutdown.Both);
+
+					if (_socket != null)
+						_socket.Close();
+				}
 			}
-			else
+			catch (Exception exception)
 			{
-				_continueCapturing = false;
-				_socket.Close();
+				_socketListnerException = exception;
+				OnException();
 			}
 		}
 
@@ -353,71 +302,55 @@ namespace Sniffer
 		{
 			if (_continueCapturing)
 			{
-				_socket.Close();
-				_logger.Stop();
-				_loggerIn.Stop();
-				_loggerOut.Stop();
+				_continueCapturing = false;
+				_socket.Shutdown(SocketShutdown.Both);
+				if (_socket != null)
+					_socket.Close();
 			}
+			_swWriter.Close();
 		}
 
 		/// <summary>
-		/// Ip адрес источника
+		/// Исключение
 		/// </summary>
-		public IPAddress SourceIpAddress
+		public Exception SocketListnerException
 		{
 			get
 			{
-				return _sourceIpAddress;
+				return _socketListnerException;
 			}
 		}
 
-		/// <summary>
-		/// Порт источника
-		/// </summary>
-		public ushort SourcePort
+		#region Ip данные
+
+		public ProtocolType Version
 		{
 			get
 			{
-				return _sourcePort;
+				return _version;
 			}
 		}
-
-		/// <summary> 
-		/// Ip адрес назначения
-		/// </summary>
-		public IPAddress DestinationIpAddress
+		public int HeaderLength
 		{
 			get
 			{
-				return _desinationIpAddress;
+				return _headerLength;
 			}
 		}
-
-		/// <summary>
-		/// Порт назначения
-		/// </summary>
-		public ushort DestinationPort
+		public ushort TotalLength
 		{
 			get
 			{
-				return _destinationPort;
+				return _totalLength;
 			}
 		}
-
-		/// <summary>
-		/// Протокол
-		/// </summary>
-		public ProtocolType Protocol
+		public ushort Identifier
 		{
 			get
 			{
-				return _protocol;
+				return _identifier;
 			}
 		}
-
-		/// <summary>
-		/// Время жизни пакета
-		/// </summary>
 		public int Ttl
 		{
 			get
@@ -425,6 +358,91 @@ namespace Sniffer
 				return _ttl;
 			}
 		}
-	    #endregion
+		public ProtocolType Protocol
+		{
+			get
+			{
+				return _protocol;
+			}
+		}
+		public IPAddress SourceIpAddress
+		{
+			get
+			{
+				return _sourceIpAddress;
+			}
+		}
+		public IPAddress DestinationIpAddress
+		{
+			get
+			{
+				return _destinationIpAddress;
+			}
+		}
+		public byte[] DataIp
+		{
+			get
+			{
+				return _dataIp;
+			}
+		}
+		public ushort DataLength
+		{
+			get
+			{
+				return _dataLength;
+			}
+		}
+
+		#endregion
+
+		#region Tcp данные
+
+		public ushort SourcePort
+		{
+			get
+			{
+				return _sourcePort;
+			}
+		}
+		public ushort DestinationPort
+		{
+			get
+			{
+				return _destinationPort;
+			}
+		}
+		public uint Isn
+		{
+			get
+			{
+				return _isn;
+			}
+		}
+		public uint An
+		{
+			get
+			{
+				return _an;
+			}
+		}
+		public int WindowSize
+		{
+			get
+			{
+				return _windowSize;
+			}
+		}
+		public byte[] DataTcp
+		{
+			get
+			{
+				return _dataTcp;
+			}
+		}
+
+		#endregion
+
+		#endregion
 	}
 }

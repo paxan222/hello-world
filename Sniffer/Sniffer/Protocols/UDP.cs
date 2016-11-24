@@ -36,6 +36,11 @@ namespace Sniffer.Protocols
 		/// </summary>
 		private byte[] _data = new byte[4096];
 
+		/// <summary>
+		/// Исключение
+		/// </summary>
+		private Exception _udpException;
+
 		#endregion
 		
 		#region Конструктор
@@ -47,18 +52,35 @@ namespace Sniffer.Protocols
 		/// <param name="nReceive">длина сообщения</param>
 		public UDP(byte[] bytesBuffer, int nReceive)
 		{
-			var memoryStream = new MemoryStream(bytesBuffer, 0, nReceive);
-			var binaryReader = new BinaryReader(memoryStream);
+			try
+			{
+				var memoryStream = new MemoryStream(bytesBuffer, 0, nReceive);
+				var binaryReader = new BinaryReader(memoryStream);
 
-			_sourcePort = (ushort)IPAddress.NetworkToHostOrder(binaryReader.ReadInt16());
-			_destinationPort = (ushort)IPAddress.NetworkToHostOrder(binaryReader.ReadInt16());
-			_length = (ushort)IPAddress.NetworkToHostOrder(binaryReader.ReadInt16());
-			_checksum = (ushort)IPAddress.NetworkToHostOrder(binaryReader.ReadUInt16());
+				_sourcePort = (ushort)IPAddress.NetworkToHostOrder(binaryReader.ReadInt16());
+				_destinationPort = (ushort)IPAddress.NetworkToHostOrder(binaryReader.ReadInt16());
+				_length = (ushort)IPAddress.NetworkToHostOrder(binaryReader.ReadInt16());
+				_checksum = (ushort)IPAddress.NetworkToHostOrder(binaryReader.ReadUInt16());
 
-			_data = new byte[4096];
+				_data = new byte[4096];
 
-			Array.Copy(bytesBuffer, 8, _data, 0, nReceive - 8);
+				Array.Copy(bytesBuffer, 8, _data, 0, nReceive - 8);
+			}
+			catch (Exception exception)
+			{
+				_udpException = exception;
+				OnException();
+			}
 		}
+
+		#endregion
+
+		#region События
+
+		/// <summary>
+		/// Событие при исключении
+		/// </summary>
+		public event SocketListner.SocketListnerEventHandler OnException;
 
 		#endregion
 
@@ -116,6 +138,17 @@ namespace Sniffer.Protocols
 			get
 			{
 				return _data;
+			}
+		}
+
+		/// <summary>
+		/// Исключение
+		/// </summary>
+		public Exception UdpException
+		{
+			get
+			{
+				return _udpException;
 			}
 		}
 
