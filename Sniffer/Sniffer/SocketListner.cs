@@ -81,6 +81,7 @@ namespace Sniffer
 		#endregion
 
 		private string _logsFolderPath;
+
 		#endregion
 
 		#region Конструктор
@@ -88,7 +89,7 @@ namespace Sniffer
 		/// <summary>
 		/// Конструктор класса
 		/// </summary>
-		public SocketListner(string logsFolderPath)
+		public SocketListner(string logsFolderPath="")
 		{
 			_logsFolderPath = logsFolderPath;
 			try
