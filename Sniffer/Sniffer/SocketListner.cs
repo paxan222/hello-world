@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
+using System.Runtime.InteropServices;
 using Sniffer.Protocols;
 
 namespace Sniffer
@@ -77,6 +78,12 @@ namespace Sniffer
 		private uint _an;
 		private int _windowSize;
 		private byte[] _dataTcp;
+		private byte _psh;
+		private byte _syn;
+		private byte _ack;
+		private byte _urg;
+		private byte _rst;
+		private byte _fin;
 
 		#endregion
 
@@ -197,6 +204,12 @@ namespace Sniffer
 			_an = tcp.AcknowladgementNumber;
 			_windowSize = tcp.WindowSize;
 			_dataTcp = tcp.Data;
+			_psh = tcp.PSH;
+			_syn = tcp.SYN;
+			_ack = tcp.ACK;
+			_urg = tcp.URG;
+			_rst = tcp.RST;
+			_fin = tcp.FIN;
 
 		}
 
@@ -442,6 +455,50 @@ namespace Sniffer
 			}
 		}
 
+		public byte Psh
+		{
+			get
+			{
+				return _psh;
+			}
+		}
+
+		public byte Syn
+		{
+			get
+			{
+				return _syn;
+			}
+		}
+
+		public byte Ack
+		{
+			get
+			{
+				return _ack;
+			}
+		}
+		public byte Urg
+		{
+			get
+			{
+				return _urg;
+			}
+		}
+		public byte Rst
+		{
+			get
+			{
+				return _rst;
+			}
+		}
+		public byte Fin
+		{
+			get
+			{
+				return _fin;
+			}
+		}
 		#endregion
 
 		#endregion
