@@ -1,0 +1,26 @@
+LIBRARY
+EXPORTS
+	InputData
+	GetPlayer
+	GetLivePlayer
+	ReleasePlayer
+	GetStreamInfo
+	Play
+	Pause
+	Stop
+	SwitchSound
+	GetVolume
+	SetVolume
+	SetPlaybackPosition
+	MoveToNextFrame
+	MoveToPreviousFrame
+	IncreasePlaybackSpeed
+	DecreasePlaybackSpeed
+	Refresh
+	SaveSnapshoot
+	GetPlaybackPosition
+	SetStretchMode
+	GetSourceBufferMaxSize
+	GetSourceBufferRemainSize
+	ResetSourceBuffer
+	InitializationFileMode

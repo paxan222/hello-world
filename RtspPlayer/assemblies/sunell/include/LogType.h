@@ -1,0 +1,100 @@
+#ifndef _LOGTYPE_H_
+#define _LOGTYPE_H_
+
+class LogType
+{
+public:
+	//日志主类型
+	enum MajorType
+	{
+		LOG_MAJOR_TYPE_EXCEPTION 				= 0x2,	//异常日志
+		LOG_MAJOR_TYPE_OPERATION 				= 0x3,	//操作日志
+		LOG_MAJOR_TYPE_OPERATION_V2				= 0x4	//操作日志v2
+	};
+
+	enum ExceptionMinorType
+	{
+		LOG_MINOR_TYPE_VI_LOST					= 0x21,	//信号丢失  
+		LOG_MINOR_TYPE_ILLEGAL_ACCESS			= 0x22,	//非法访问  
+		LOG_MINOR_TYPE_HD_FULL					= 0x23,	//磁盘满  
+		LOG_MINOR_TYPE_HD_ERROR					= 0x24,	//磁盘错误  
+		LOG_MINOR_TYPE_HD_NOT_EXISTENT			= 0x27,	//磁盘不存在  
+		LOG_MINOR_TYPE_HD_WRITE_PROTECT			= 0x28,	//磁盘写保护
+		LOG_MINOR_TYPE_HD_NOT_FORMAT			= 0x29,	//磁盘未格式化
+
+		LOG_MINOR_TYPE_DCD_LOST					= 0x25,	//MODEM 掉线  
+		LOG_MINOR_TYPE_IP_CONFLICT				= 0x26,	//IP地址冲突
+
+		LOG_MINOR_TYPE_ALARM_RECORD_HD_FULL			= 0x30,	//报警录制磁盘满  
+		LOG_MINOR_TYPE_SCHEDULE_RECORD_HD_FULL		= 0x31,	//计划录制磁盘满  
+		LOG_MINOR_TYPE_ALWAYS_RECORD_HD_FULL		= 0x32	//7*24录制磁盘满  
+
+	};
+
+	enum OperaTionMinorType
+	{
+		LOG_MINOR_TYPE_START_DVR				= 0x41,  //开机  
+		LOG_MINOR_TYPE_STOP_DVR					= 0x42,  //关机  
+		LOG_MINOR_TYPE_STOP_ABNORMAL			= 0x43,  //非法关机  
+
+		LOG_MINOR_TYPE_LOCAL_LOGIN				= 0x50,  //本地登陆
+		LOG_MINOR_TYPE_LOCAL_LOGOUT				= 0x51,  //本地注销登陆  
+		LOG_MINOR_TYPE_LOCAL_CFG_PARM			= 0x52,  //本地配置参数  
+		LOG_MINOR_TYPE_LOCAL_PLAYBYFILE			= 0x53,  //本地按文件回放  
+		LOG_MINOR_TYPE_LOCAL_PLAYBYTIME			= 0x54,  //本地按时间回放  
+		LOG_MINOR_TYPE_LOCAL_START_REC			= 0x55,  //本地开始录像  
+		LOG_MINOR_TYPE_LOCAL_STOP_REC			= 0x56,  //本地停止录像  
+		LOG_MINOR_TYPE_LOCAL_PTZCTRL			= 0x57,  //本地云台控制  
+		LOG_MINOR_TYPE_LOCAL_PREVIEW			= 0x58,  //本地预览  
+		LOG_MINOR_TYPE_LOCAL_MODIFY_TIME		= 0x59,  //本地修改时间  
+		LOG_MINOR_TYPE_LOCAL_UPGRADE			= 0x5a,  //本地升级  
+		LOG_MINOR_TYPE_LOCAL_COPYFILE			= 0x5b,  //本地备份文件  
+
+		LOG_MINOR_TYPE_REMOTE_LOGIN				= 0x70,  //远程登录  
+		LOG_MINOR_TYPE_REMOTE_LOGOUT			= 0x71,  //远程注销登陆  
+		LOG_MINOR_TYPE_REMOTE_START_REC			= 0x72,  //远程开始录像  
+		LOG_MINOR_TYPE_REMOTE_STOP_REC			= 0x73,  //远程停止录像  
+		LOG_MINOR_TYPE_START_TRANS_CHAN			= 0x74,  //开始透明传输  
+		LOG_MINOR_TYPE_STOP_TRANS_CHAN			= 0x75,  //停止透明传输  
+		LOG_MINOR_TYPE_REMOTE_GET_PARM			= 0x76,  //远程获得参数  
+		LOG_MINOR_TYPE_REMOTE_CFG_PARM			= 0x77,  //远程配置参数  
+		LOG_MINOR_TYPE_REMOTE_GET_STATUS		= 0x78,  //远程获得状态  
+		LOG_MINOR_TYPE_REMOTE_ARM				= 0x79,  //远程布防  
+		LOG_MINOR_TYPE_REMOTE_DISARM			= 0x7a,  //远程撤防  
+		LOG_MINOR_TYPE_REMOTE_REBOOT			= 0x7b,  //远程重启  
+		LOG_MINOR_TYPE_START_VT					= 0x7c,  //开始语音对讲  
+		LOG_MINOR_TYPE_STOP_VT					= 0x7d,  //停止语音对讲  
+		LOG_MINOR_TYPE_REMOTE_UPGRADE			= 0x7e,  //远程升级
+		LOG_MINOR_TYPE_REMOTE_PLAYBYFILE		= 0x7f,  //远程按文件回放  
+		LOG_MINOR_TYPE_REMOTE_PLAYBYTIME		= 0x80,  //远程按时间回放  
+		LOG_MINOR_TYPE_REMOTE_PTZCTRL			= 0x81,  //远程云台控制
+		LOG_MINOR_TYPE_REMOTE_START_VIDEO		= 0x82,  //远程开始实时视频
+		LOG_MINOR_TYPE_REMOTE_STOP_VIDEO		= 0x83,  //远程停止实时视频
+		LOG_MINOR_TYPE_REMOTE_START_AUDIO		= 0x84,	 //远程开始实时音频
+		LOG_MINOR_TYPE_REMOTE_STOP_AUDIO		= 0x85,	 //远程停止实时音频
+		LOG_MINOR_TYPE_STORAGE_FORMAT			= 0x86	 //设备存储格式化（SD卡格式化）
+	};
+
+
+	enum OperaTionMinorType_v2
+	{
+		LOG_MINOR_TYPE_V2_USER_MANAGE			= 0x01,		//用户管理  
+		LOG_MINOR_TYPE_V2_SYSTEM_MANAGE			= 0x02,		//系统维护  
+		LOG_MINOR_TYPE_V2_DEVICE_CONFIG			= 0x03,		//设备配置  
+		LOG_MINOR_TYPE_V2_RECORD_CTRL			= 0x04,		//录像操作  
+		LOG_MINOR_TYPE_V2_LIVE_VIDEO_CTRL		= 0x05,		//音视频控制  
+		LOG_MINOR_TYPE_V2_LIVE_VIDEO			= 0x06,		//音视频点播 
+		LOG_MINOR_TYPE_V2_SECURITYPARAM_CONFIG	= 0x07,		//Web访问模式及SSL加密配置
+
+		LOG_MINOR_TYPE_NVR_USER_MANAGER			= 0x11,		//NVR用户管理  
+		LOG_MINOR_TYPE_NVR_CONFIG				= 0x12,		//NVR配置  
+		LOG_MINOR_TYPE_NVR_CHANNEL_MANAGER		= 0x13,		//NVR通道管理
+		LOG_MINOR_TYPE_NVR_RECORD_CTR			= 0x14,		//录像操作  
+		LOG_MINOR_TYPE_NVR_LIVE_VIDEO			= 0x15,		//音视频
+
+		LOG_MINOR_TYPE_V2_AUDIO_ALARM_DATA			= 0x16,		//音频报警数据请求
+	};
+
+};
+
+#endif //_LOGTYPE_H_

@@ -1,0 +1,34 @@
+#ifndef _FISHEYE_CONST_H_
+#define _FISHEYE_CONST_H_
+
+
+//鱼眼视频模式
+enum FISHEYE_VIDEO_MODE
+{
+	FISHEYE_SINGLE_STREAM	= 0,	//单流模式
+	FISHEYE_MULTI_STREAM	= 1		//多流模式
+};
+
+//矫正模式
+enum FISHEYE_DEWARP_MODE
+{
+	FISHEYE_DEWRAP_FISHEYE	= 0,	//鱼眼模式
+	FISHEYE_DEWRAP_NORMAL	= 1,	//未实现，正常模式
+	FISHEYE_DEWRAP_PANORAMA	= 2,	//全景模式
+	FISHEYE_DEWRAP_PTZ		= 3,	//未实现，PTZ模式
+	FISHEYE_DEWARP_1F_3P	= 4,	//1鱼眼+3PTZ模式
+	FISHEYE_DEWARP_1F_5P	= 5,	//1鱼眼+5PTZ模式
+	FISHEYE_DEWARP_1F_7P	= 6,	//1鱼眼+7PTZ模式
+	FISHEYE_DEWARP_1F_8P	= 7,	//1鱼眼+8PTZ模式
+	FISHEYE_DEWARP_4PTZ		= 8		//4PTZ模式
+};
+
+//安装模式
+enum FISHEYE_MOUNT_TYPE
+{
+	MOUNT_WALL	  = 0,	//壁装
+	MOUNT_CEILING = 1,	//吊顶
+	MOUNT_DESKTOP = 2,  //桌面
+};
+
+#endif //_FISHEYE_CONST_H_

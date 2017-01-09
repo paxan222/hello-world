@@ -1,0 +1,81 @@
+#ifndef _CONST_H_
+
+#define _CONST_H_
+
+#define CONST_VIDEO_RECV_BUFFER_SIZE			4096 * 1024
+
+//TCP/UDP一般数据包头
+#define CONST_LENGTH_PACKET_HEAD				24		//包头长度
+#define CONST_LENGTH_PACKET_RESERVE				3		//包头保留位长度
+
+#define CONST_MAXLENGTH_NETWORK_MTU				1400	//MTU长度
+#define CONST_MAXLENGTH_PACKET					(CONST_MAXLENGTH_NETWORK_MTU)
+#define CONST_MAXLENGTH_PACKET_PAYLOAD			(CONST_MAXLENGTH_PACKET - CONST_LENGTH_PACKET_HEAD)		//包最大长度
+
+//视频格式专用包格式定义
+#define CONST_LENGTH_AV_PACKET_HEAD				20
+#define CONST_LENGTH_AV_PACKET_RESERVE			2
+
+
+#define CONST_MAXLENGTH_COMMAND					(CONST_MAXLENGTH_PACKET - CONST_LENGTH_PACKET_HEAD)		//命令最大长度
+#define CONST_LENGTH_COMMAND_HEAD				76		//命令头长度
+#define CONST_MAXLENGTH_COMMAND_PAYLOAD			(CONST_MAXLENGTH_COMMAND - CONST_LENGTH_COMMAND_HEAD)	//
+#define CONST_LENGTH_COMMAND_SOURCEID			32
+#define CONST_LENGTH_COMMAND_DESTID				32
+#define CONST_LENGTH_COMMAND_RESERVE			2
+#define CONST_LENGTH_FRAMEHEAD					16 //25
+
+#define CONST_COMMAND_VERSION_V1				1
+#define CONST_COMMAND_VERSION_V2				2
+
+#define CONST_DEFAULTSIZE_CAPTUREVECTOR			100			//CaptureManager默认的队列最大值
+
+
+#define MAX_LEN_SPLIT_DATA							((1024 - CONST_LENGTH_COMMAND_HEAD)*15)   //分包数据最大长度
+
+#define	CONST_MAXLENGTH_RESPONSEINFO				512		//应答信息最大长度
+#define	CONST_LENGTH_RESPONSE_HEAD					12		//应答命令头长度
+
+
+#define CONST_LENGTH_DATANAME						256
+#define CONST_LENGTH_SUBCOMMAND_PAYLOAD    			(CONST_MAXLENGTH_COMMAND_PAYLOAD - sizeof(int) - sizeof(unsigned int) )
+
+
+#define CONST_INTERVAL_CAPTUREFREE					30			//	captureFree线程扫描间隔时间
+#define CONST_INTERVAL_MUX							15			//音视频混合器混合数据的间隔时间（单位是秒）
+ 
+#define CONST_MAXLENGTH_VIDEO_FRAME					(1920 * 1080) //视频帧最大长度
+
+#define CONST_MAXLENGTH_AUDIO_FRAME					(1024 * 6)		//音频帧最大长度
+
+#define CONST_MPEG2TS_PACKET_LENGTH					188
+
+#define RTPEXTENDHEADID								100			//RTP扩展头的标识号，扩展头中保存有帧类型
+
+#define CONST_SIZE_RTP_FRAME_MAP					20			//rtp分包帧队列默认大小
+#define CONST_SIZE_RTP_PACKET_MAP					100			//rtp分包每帧队列默认大小
+#define CONST_MAXSIZE_RTPFRAME_MAP					100			//rtp分包帧队列最大容量
+
+#define CONST_RTP_EXTENDHEAD_LENGTH					72			//rtp扩展头长度
+
+#define CONST_MAXLENGTH_IP							48			//字符串IP长度
+
+#define CONST_SESSION_SUCCESS						0
+#define CONST_SESSION_FAILED						-1
+#define CONST_SESSION_EXIT							-2
+
+#define CONST_TRANSFER_CONNECT_TIMEOUT				3000
+
+//用户数，TCP连接，视频连接数的最大限定值
+#define CONST_MAX_TCP_CONNECTION_NUM				128				//最大的TCP连接数量
+#define CONST_MAX_AV_CONNECTION_NUM					64				//最大的音视频连接数	
+#define CONST_MAX_SESSIONID							65535				//最大的用户数
+#define CONST_MAX_FILE_TRANSFER_NUM					16				//最大的文件传输数
+
+
+#define CONST_MAX_DISK_GROUP_ID_COUNT				8				//组磁盘ID最大个数
+
+#define CONST_DIRECT_IO_BLOCK_SIZE					(4*1024)		//DirectIO读写块大小
+
+#endif //_CONST_H_
+
