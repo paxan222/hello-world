@@ -119,6 +119,7 @@
     <ClCompile Include="FFmpegPlayer.cpp" />
     <ClCompile Include="HikDecoder.cpp" />
     <ClCompile Include="HikPlayer.cpp" />
+    <ClCompile Include="MemLog.cpp" />
     <ClCompile Include="playback.cpp" />
     <ClCompile Include="RtspDecoder.cpp" />
     <ClCompile Include="RtspPlayer.cpp" />

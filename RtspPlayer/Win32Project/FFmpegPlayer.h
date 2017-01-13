@@ -1,6 +1,7 @@
 #pragma once
 #include "BasePlayer.h"
 #include "Queue.h"
+#include <gdiplus.h>
 
 class Frame	final
 {
@@ -83,7 +84,7 @@ class CFFmpegPlayer : public CBasePlayer
 {
 	const AVPixelFormat						m_dstPixFmt{ AV_PIX_FMT_YUV420P };
 	const AVSampleFormat					m_dstSndFmt{ AV_SAMPLE_FMT_S16 };
-	const Uint16							AUDIO_SAMPLES{ 512 };
+	const Uint16							AUDIO_SAMPLES{ 1024 };
 	static const std::size_t				DEMUXER_QUEUE_SIZE{ 400 };
 	static const std::size_t				VIDEO_QUEUE_SIZE{ 30 };
 	static const std::size_t				AUDIO_QUEUE_SIZE{ 60 };
@@ -110,6 +111,8 @@ class CFFmpegPlayer : public CBasePlayer
 
 	SDL_AudioSpec							m_audioSpec, m_audioDesiredSpec{};
 	SDL_AudioDeviceID						m_audioDevice;
+	Gdiplus::GdiplusStartupInput			gdiplusStartupInput;
+	ULONG_PTR								m_gdiplusToken;
 
 	enum class state
 	{
@@ -127,7 +130,7 @@ class CFFmpegPlayer : public CBasePlayer
 
 		Queue::ThreadSafe<Packet::Ptr>		qAudioPackets{ DEMUXER_QUEUE_SIZE };
 		Queue::ThreadSafe<Packet::Ptr>		qVideoPackets{ DEMUXER_QUEUE_SIZE };
-		Queue::ThreadSafe<Frame::Ptr>		qAudioFrames/*{ AUDIO_QUEUE_SIZE }*/;
+		Queue::ThreadSafe<Frame::Ptr>		qAudioFrames{ AUDIO_QUEUE_SIZE };
 		Queue::ThreadSafe<PicturePtr>		qVideoFrames/*{ VIDEO_QUEUE_SIZE }*/;
 
 		state								demux_state{ state::None };
@@ -167,7 +170,6 @@ class CFFmpegPlayer : public CBasePlayer
 	FDecodeCallback							m_cbOnFrame;
 	FFileEndCallback						m_cbOnEof;
 
-	ULONG_PTR								m_gdiplusToken;
 public:
 	CFFmpegPlayer(PCHAR pchFileName,
 		FDecodeCallback fOnFrame,

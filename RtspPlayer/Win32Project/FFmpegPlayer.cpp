@@ -1,8 +1,9 @@
 #include "stdafx.h"
-#include "Queue.h"
 #include "FFmpegPlayer.h"
-#include <gdiplus.h>
 //#include "vld.h"
+
+// Calculate actual buffer size keeping in mind not cause too frequent audio callbacks
+#define SDL_AUDIO_MAX_CALLBACKS_PER_SEC 30;
 
 #pragma comment(lib, "SDL2")
 
@@ -33,27 +34,15 @@ BOOL CFFmpegPlayer::Open()
 {
 	av_register_all();
 
-	if (m_fileName.find("rtsp://") != std::string::npos)
+	/*if (m_fileName.find("rtsp://") != std::string::npos)
 	{
-		if (0 > av_dict_set(&m_options, "rtsp_transport", "tcp", 0))
-			return FALSE;
+	if (0 > av_dict_set(&m_options, "rtsp_transport", "tcp", 0))
+	return FALSE;
 	}
 	else
-	{
-		m_options = nullptr;
-	}
-	Init();
-
-	return TRUE;
-}
-
-// Открытие RTSP потока
-BOOL CFFmpegPlayer::OpenRtsp()
-{
-	av_register_all();
-
-	if (0 > av_dict_set(&m_options, "rtsp_transport", "tcp", 0))
-		return FALSE;
+	{*/
+	m_options = nullptr;
+	//}
 	Init();
 
 	return TRUE;
@@ -61,8 +50,6 @@ BOOL CFFmpegPlayer::OpenRtsp()
 
 BOOL CFFmpegPlayer::Init()
 {
-	////Инициализация Gdiplus
-	Gdiplus::GdiplusStartupInput gdiplusStartupInput;
 	Gdiplus::GdiplusStartup(&m_gdiplusToken, &gdiplusStartupInput, NULL);
 
 	if (avformat_open_input(&m_fmtCtx, m_fileName.c_str(), nullptr, &m_options))
@@ -83,13 +70,12 @@ BOOL CFFmpegPlayer::Init()
 	{
 		if (SDL_Init(SDL_INIT_AUDIO))
 			return FALSE;
-	}
-
-	if (hasAudio())
-	{
+		if (SDL_InitSubSystem(SDL_INIT_AUDIO))
+			return FALSE;
+		SDL_memset(&m_audioDesiredSpec, 0, sizeof(m_audioDesiredSpec));
 		m_audioDesiredSpec.channels = m_audioCtx->channels;
 		m_audioDesiredSpec.freq = m_audioCtx->sample_rate;
-		//m_decoder.audioSilent = false;
+		m_decoder.audioSilent = false;
 	}
 	else
 	{
@@ -97,11 +83,14 @@ BOOL CFFmpegPlayer::Init()
 		m_audioDesiredSpec.freq = 11025;
 		//m_decoder.audioSilent = true;
 	}
+
+	m_audioDesiredSpec.silence = 0;
 	m_audioDesiredSpec.format = AUDIO_S16SYS;
-	m_audioDesiredSpec.samples = AUDIO_SAMPLES;
+	m_audioDesiredSpec.samples = m_audioDesiredSpec.freq / SDL_AUDIO_MAX_CALLBACKS_PER_SEC;
 	m_audioDesiredSpec.userdata = this;
 	m_audioDesiredSpec.callback = [](void* userdata, Uint8* stream, int want_bytes)
 	{
+		//want_bytes = len
 		static int64_t begin_ts;
 		auto last_frame = begin_ts;
 		begin_ts = av_gettime_relative();
@@ -150,8 +139,14 @@ BOOL CFFmpegPlayer::Init()
 			{
 				//assert(decoder->syncInfo.pending_buf == frames_queue->Front()->Raw()->data[0]);
 
-				if (!decoder->audioSilent)
-					std::memcpy(stream, decoder->syncInfo.pending_buf, decoder->syncInfo.got_in_buf);
+				if (!decoder->audioSilent){
+					try{
+						std::memcpy(stream, decoder->syncInfo.pending_buf, decoder->syncInfo.got_in_buf);
+					}
+					catch (...){
+						return;
+					}
+				}
 				else
 					SDL_memset(stream, 0, decoder->syncInfo.got_in_buf);
 
@@ -176,19 +171,25 @@ BOOL CFFmpegPlayer::Init()
 
 		if (want_bytes)
 		{
-			if (!decoder->audioSilent)
-				std::memcpy(stream, decoder->syncInfo.pending_buf, want_bytes);
+			if (!decoder->audioSilent){
+				try{
+					std::memcpy(stream, decoder->syncInfo.pending_buf, want_bytes);
+
+				}
+				catch (...){
+					return;
+				}
+			}
 			else
 				SDL_memset(stream, 0, want_bytes);
-
 			decoder->syncInfo.got_in_buf -= want_bytes;
 			decoder->syncInfo.pending_buf += want_bytes;
 		}
 	};
 
+
 	m_audioDevice = SDL_OpenAudioDevice(nullptr, 0,
-		&m_audioDesiredSpec, &m_audioSpec,
-		0);
+		&m_audioDesiredSpec, &m_audioSpec, 0);
 
 	m_scaleCtx = sws_getCachedContext(m_scaleCtx, m_width, m_height, *m_pixFmt, m_width, m_height, m_dstPixFmt, SWS_FAST_BILINEAR, nullptr, nullptr, nullptr);
 	if (!m_scaleCtx)
@@ -214,96 +215,6 @@ BOOL CFFmpegPlayer::Init()
 	return TRUE;
 }
 
-void CFFmpegPlayer::PlayMain()
-{
-	std::thread([this](){
-		////Инициализация Gdiplus
-		Gdiplus::GdiplusStartupInput gdiplusStartupInput;
-		Gdiplus::GdiplusStartup(&m_gdiplusToken, &gdiplusStartupInput, NULL);
-
-		av_register_all();
-
-		if (m_fileName.find("rtsp://") != std::string::npos)
-		{
-			av_dict_set(&m_options, "rtsp_transport", "tcp", 0);
-
-		}
-		else
-		{
-			m_options = nullptr;
-		}
-
-
-		avformat_open_input(&m_fmtCtx, m_fileName.c_str(), nullptr, &m_options);
-		avformat_find_stream_info(m_fmtCtx, nullptr);
-
-		av_dump_format(m_fmtCtx, 0, m_fileName.c_str(), 0);
-		m_fileName = "";
-
-		m_videoStreamIndex = av_find_best_stream(m_fmtCtx, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
-		m_videoCtx = m_fmtCtx->streams[m_videoStreamIndex]->codec;
-
-		m_codecVideo = avcodec_find_decoder(m_videoCtx->codec_id);
-
-		m_videoCtx->refcounted_frames = 1;
-		avcodec_open2(m_videoCtx, m_codecVideo, nullptr);
-
-		m_width = m_videoCtx->width;
-		m_height = m_videoCtx->height;
-		m_fps = av_q2d(av_guess_frame_rate(m_fmtCtx, m_fmtCtx->streams[m_videoStreamIndex], nullptr));
-
-		m_pixFmt = &m_videoCtx->pix_fmt;
-
-		int frameFinished;
-
-		auto scaledBmp = static_cast<AVPicture*>(av_malloc(sizeof(AVPicture)));
-
-		pFrame = av_frame_alloc();
-
-		while (av_read_frame(m_fmtCtx, &m_packet) >= 0)
-		{
-			// Is this a packet from the video stream?
-			if (m_packet.stream_index == m_videoStreamIndex) {
-				// Decode video frame
-				avcodec_decode_video2(m_videoCtx, pFrame, &frameFinished,
-					&m_packet);
-
-				// Did we get a video frame?
-				if (frameFinished) {
-
-					RECT rect;	GetWindowRect(m_hMainWindow, &rect);
-					Gdiplus::Rect gdiRect;
-					gdiRect.X = 0;
-					gdiRect.Y = 0;
-					gdiRect.Width = abs(rect.right - rect.left);
-					gdiRect.Height = abs(rect.bottom - rect.top);
-
-					avpicture_alloc(scaledBmp, AV_PIX_FMT_RGB32, gdiRect.Width, gdiRect.Height);
-
-					m_scaleCtx = sws_getCachedContext(m_scaleCtx, m_width, m_height, m_dstPixFmt, gdiRect.Width, gdiRect.Height, AV_PIX_FMT_RGB32, SWS_FAST_BILINEAR, nullptr, nullptr, nullptr);
-
-					// Convert the image from its native format to RGB
-					sws_scale(m_scaleCtx, (uint8_t const * const *)pFrame->data, pFrame->linesize, 0, m_videoCtx->height, scaledBmp->data, scaledBmp->linesize);
-					Gdiplus::Bitmap *bmp = new Gdiplus::Bitmap(gdiRect.Width, gdiRect.Height, scaledBmp->linesize[0], PixelFormat32bppRGB, scaledBmp->data[0]);
-
-					HDC wndHdc = GetDC(m_hMainWindow);
-
-					Gdiplus::Graphics graphics(wndHdc);
-
-					graphics.DrawImage(bmp, gdiRect);
-
-					ReleaseDC(m_hMainWindow, wndHdc);
-
-					avpicture_free(scaledBmp);
-					delete bmp;
-				}
-			}
-			// Free the packet that was allocated by av_read_frame
-			av_free_packet(&m_packet);
-		}
-		av_frame_free(&pFrame);
-	}).detach();
-}
 BOOL CFFmpegPlayer::Play()
 {
 	DEBUG_MSG("Play");
@@ -481,12 +392,11 @@ void CFFmpegPlayer::streamsOpen()
 
 void CFFmpegPlayer::threadsCreate()
 {
-	ThreeInOne();
 	startDemuxer();
 	if (hasVideo())
-	startDecoderVideo();
+		startDecoderVideo();
 	if (hasAudio())
-	startDecoderAudio();
+		startDecoderAudio();
 	startRenderer();
 }
 
@@ -546,6 +456,7 @@ void CFFmpegPlayer::ThreeInOne()
 		av_frame_free(&pFrame);
 	}).detach();
 }
+
 void CFFmpegPlayer::startDemuxer()
 {
 	std::thread([this]()
@@ -564,52 +475,55 @@ void CFFmpegPlayer::startDemuxer()
 					return !m_pausedWorld;
 				});
 
-				//while (m_avpacket){
-				//	Sleep(2);
-				//}
-				//m_avpacket = (AVPacket*)av_malloc(sizeof(AVPacket));
-				//if (av_read_frame(m_fmtCtx, m_avpacket))
-				//{
-				//	m_decoder.demux_state = state::Finished;
-				//	break;	// Eof or error
-				//}
+				Packet::Ptr pkt;
+				if (!aborted_pkt)
+				{
+					pkt = Packet::New();
 
-				//else {
-				//	//pkt = std::move(aborted_pkt);
-				//}
-				//try
-				//{
-				//	/*auto minAudio = m_decoder.qAudioPackets.Size() <= m_decoder.qVideoPackets.Size();
-				//	auto capacityVideo = 0,
-				//		capacityAudio = 0;
-				//	if (minAudio)
-				//	{
-				//		capacityAudio = QUEUE_SIZE_THRESH;
-				//	}
-				//	else
-				//	{
-				//		capacityVideo = QUEUE_SIZE_THRESH;
-				//	}*/
+					if (av_read_frame(m_fmtCtx, pkt->Raw())) {
+						m_decoder.demux_state = state::Finished;
+						break;	// Eof or error
+					}
+				}
+				else {
+					pkt = std::move(aborted_pkt);
+				}
 
-				//	/*m_decoder.qAudioPackets.SetCapacity(capacityAudio);
-				//	m_decoder.qVideoPackets.SetCapacity(capacityVideo);*/
-				//	//
-				//	//if (m_avpacket->stream_index == m_videoStreamIndex)
-				//	//{
-				//	//	std::clog << "Video PACKET push" << std::endl;
-				//	//	
-				//	//	//m_decoder.qVideoPackets.Push(std::move(pkt));
-				//	//}
-				//	//else if (m_avpacket->stream_index == m_audioStreamIndex && IsAudioEnabled())
-				//	//{
-				//	//	std::clog << "Audio PACKET push" << std::endl;
-				//	//	//m_decoder.qAudioPackets.Push(std::move(pkt));
-				//	//}
-				//}
-				//catch (const Queue::abort &)
-				//{
-				//	aborted_pkt = std::move(pkt);
-				//}
+				try
+				{
+					auto minAudio = m_decoder.qAudioPackets.Size() <= m_decoder.qVideoPackets.Size();
+					auto capacityVideo = 0,
+						capacityAudio = 0;
+					if (minAudio)
+					{
+						capacityAudio = QUEUE_SIZE_THRESH;
+					}
+					else
+					{
+						capacityVideo = QUEUE_SIZE_THRESH;
+					}
+
+					m_decoder.qAudioPackets.SetCapacity(capacityAudio);
+					m_decoder.qVideoPackets.SetCapacity(capacityVideo);
+
+					//clog << "Audio: " << m_decoder.qAudioPackets.Size() << " "
+					//	<< "Video: " << m_decoder.qVideoPackets.Size() << "\n";
+
+					if (pkt->Raw()->stream_index == m_videoStreamIndex)
+					{
+						//std::clog << "Video PACKET push" << std::endl;
+						m_decoder.qVideoPackets.Push(std::move(pkt));
+					}
+					else if (pkt->Raw()->stream_index == m_audioStreamIndex/* && IsAudioEnabled()*/)
+					{
+						//std::clog << "Audio PACKET push" << std::endl;
+						m_decoder.qAudioPackets.Push(std::move(pkt));
+					}
+				}
+				catch (const Queue::abort &)
+				{
+					aborted_pkt = std::move(pkt);
+				}
 			}
 			if (m_quit)
 				m_decoder.demux_state = state::Interrupted;
@@ -647,26 +561,21 @@ void CFFmpegPlayer::startDecoderVideo()
 			{
 				auto frame = Frame::New();
 
-				/*if (m_decoder.qVideoPackets.Empty() && m_decoder.demux_state == state::Finished)
-					break;*/
+				if (m_decoder.qVideoPackets.Empty() && m_decoder.demux_state == state::Finished)
+					break;
 
-				///*try	{
-				//	pkt = m_decoder.qVideoPackets.Pop();
-				//}*/
-				//catch (const Queue::abort &) { continue; }
+				Packet::Ptr pkt;
 
-				//if (!pkt)
-				//	throw std::exception("empty video packet in queue");
-				//
-				/*while (!m_avpacket)
-				{
-				Sleep(2);
+				try	{
+					pkt = m_decoder.qVideoPackets.Pop();
 				}
-				avcodec_decode_video2(m_videoCtx, frame->Raw(), &frame_finished, m_avpacket);
-				av_free_packet(m_avpacket);
-				av_free(m_avpacket);
-				m_avpacket = nullptr;*/
-				/*throw std::exception("can't decode packet")*/;
+				catch (const Queue::abort &) { continue; }
+
+				if (!pkt)
+					throw std::exception("empty video packet in queue");
+
+				if (0 > avcodec_decode_video2(m_videoCtx, frame->Raw(), &frame_finished, pkt->Raw()))
+					/*throw std::exception("can't decode packet")*/;
 
 				if (frame_finished)
 				{
@@ -829,9 +738,14 @@ void CFFmpegPlayer::startRenderer()
 {
 	std::thread([this]()
 	{
+		if (Gdiplus::GdiplusStartup(&m_gdiplusToken, &gdiplusStartupInput, NULL) != Gdiplus::Ok){
+			return FALSE;
+		}
 		DEBUG_MSG("Renderer started");
 
-		SwsContext* m_bmpScaleCtx = nullptr;
+		//SwsContext* m_bmpScaleCtx = nullptr;
+		//m_bmpScaleCtx = sws_getCachedContext(m_bmpScaleCtx, m_width, m_height, m_dstPixFmt, m_width, m_height, AV_PIX_FMT_RGB32, SWS_FAST_BILINEAR, nullptr, nullptr, nullptr);
+
 		try
 		{
 			m_rendererState = state::InProgress;
@@ -885,60 +799,59 @@ void CFFmpegPlayer::startRenderer()
 				}
 				catch (const Queue::abort&){ continue; }
 
-				if (!pic)
-					throw std::exception("Empty frame");
+				//if (!pic)
+				//	throw std::exception("Empty frame");
 
 
-				RECT rect;	GetWindowRect(m_hMainWindow, &rect);
-				Gdiplus::Rect gdiRect;
-				gdiRect.X = 0;
-				gdiRect.Y = 0;
-				gdiRect.Width = abs(rect.right - rect.left);
-				gdiRect.Height = abs(rect.bottom - rect.top);
+				//RECT rect;	GetWindowRect(m_hMainWindow, &rect);
+				//Gdiplus::Rect gdiRect;
+				//gdiRect.X = 0;
+				//gdiRect.Y = 0;
+				//gdiRect.Width = abs(rect.right - rect.left);
+				//gdiRect.Height = abs(rect.bottom - rect.top);
 
-				auto scaledBmp = static_cast<AVPicture*>(av_malloc(sizeof(AVPicture)));
-				if (!pic)
-					throw std::bad_alloc();
+				//auto scaledBmp = static_cast<AVPicture*>(av_malloc(sizeof(AVPicture)));
+				//if (!pic)
+				//	throw std::bad_alloc();
 
-				if (avpicture_alloc(scaledBmp, AV_PIX_FMT_RGB32, gdiRect.Width, gdiRect.Height))
-					throw std::bad_alloc();
-
-
-
-				m_bmpScaleCtx = sws_getCachedContext(m_bmpScaleCtx, m_width, m_height, m_dstPixFmt, gdiRect.Width, gdiRect.Height, AV_PIX_FMT_RGB32, SWS_FAST_BILINEAR, nullptr, nullptr, nullptr);
-
-				sws_scale(m_bmpScaleCtx, pic->data, pic->linesize, 0, m_height, scaledBmp->data, scaledBmp->linesize);
+				//if (avpicture_alloc(scaledBmp, AV_PIX_FMT_RGB32, m_width, m_height))
+				//	throw std::bad_alloc();
 
 
-				Gdiplus::Bitmap *bmp = new Gdiplus::Bitmap(gdiRect.Width, gdiRect.Height, scaledBmp->linesize[0], PixelFormat32bppRGB, scaledBmp->data[0]);
 
-				HDC wndHdc = GetDC(m_hMainWindow);
 
-				Gdiplus::Graphics graphics(wndHdc);
+				//sws_scale(m_bmpScaleCtx, pic->data, pic->linesize, 0, m_height, scaledBmp->data, scaledBmp->linesize);
 
-				graphics.DrawImage(bmp, gdiRect);
 
-				ReleaseDC(m_hMainWindow, wndHdc);
+				//Gdiplus::Bitmap *bmp = new Gdiplus::Bitmap(gdiRect.Width, gdiRect.Height, scaledBmp->linesize[0], PixelFormat32bppRGB, scaledBmp->data[0]);
 
-				avpicture_free(scaledBmp);
+				//HDC wndHdc = GetDC(m_hMainWindow);
 
-				delete bmp;
+				//Gdiplus::Graphics graphics(wndHdc);
 
-				//// Do render onto callback
-				//if (!m_cbOnFrame)
-				//	throw std::exception("Callback is null!");
+				//graphics.DrawImage(bmp, gdiRect);
 
-				////std::clog << "RENDERING..." << std::endl;
-				//m_cbOnFrame(pic->data[0], pic->linesize[0] * m_height,
-				//	pic->linesize[0], m_width, m_height, static_cast<DWORD>(playback_video_ts/1000));
+				//ReleaseDC(m_hMainWindow, wndHdc);
 
-				auto end_ts = av_gettime_relative();
+				//avpicture_free(scaledBmp);
 
-				auto delay = (frame_q - (end_ts - begin_ts))/* * m_speedScaleFactor*/;
-				//std::cout << "delay: " << delay << std::endl;
-				if (delay > 0)
-					std::this_thread::sleep_for(std::chrono::microseconds(static_cast<int>(rint(delay))));
-				m_current_timestamp = playback_video_ts / 1000;
+				//delete bmp;
+
+				////// Do render onto callback
+				////if (!m_cbOnFrame)
+				////	throw std::exception("Callback is null!");
+
+				//////std::clog << "RENDERING..." << std::endl;
+				////m_cbOnFrame(pic->data[0], pic->linesize[0] * m_height,
+				////	pic->linesize[0], m_width, m_height, static_cast<DWORD>(playback_video_ts/1000));
+
+				//auto end_ts = av_gettime_relative();
+
+				//auto delay = (frame_q - (end_ts - begin_ts))/* * m_speedScaleFactor*/;
+				////std::cout << "delay: " << delay << std::endl;
+				//if (delay > 0)
+				//	std::this_thread::sleep_for(std::chrono::microseconds(static_cast<int>(rint(delay))));
+				//m_current_timestamp = playback_video_ts / 1000;
 			}
 		}
 		catch (const Queue::terminate&)
@@ -953,7 +866,7 @@ void CFFmpegPlayer::startRenderer()
 		if (hasAudio())
 			stopAudio();
 
-		sws_freeContext(m_bmpScaleCtx);
+		//sws_freeContext(m_bmpScaleCtx);
 		SDL_CloseAudioDevice(m_audioDevice);
 
 
@@ -966,6 +879,7 @@ void CFFmpegPlayer::startRenderer()
 		Gdiplus::GdiplusShutdown(m_gdiplusToken);
 
 		DEBUG_MSG("Renderer stopped");
+
 	}).detach();
 }
 
@@ -1022,8 +936,8 @@ void CFFmpegPlayer::unpause()
 	assert(m_paused);
 	m_paused = false;
 	m_unpause.notify_all();
-	//if (hasAudio())
-	startAudio();
+	if (hasAudio())
+		startAudio();
 
 	DEBUG_MSG("++Unpause");
 }
@@ -1068,8 +982,8 @@ void CFFmpegPlayer::startAudio()
 
 bool CFFmpegPlayer::hasAudio() const
 {
-	//return m_audioStreamIndex >= 0;
-	return FALSE;
+	return m_audioStreamIndex >= 0;
+	//return FALSE;
 }
 
 bool CFFmpegPlayer::hasVideo() const

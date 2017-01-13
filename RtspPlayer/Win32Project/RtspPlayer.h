@@ -1,6 +1,5 @@
 #pragma once
 #include "BasePlayer.h"
-#include "Queue.h"
 #include <gdiplus.h>
 
 #define SDL_AUDIO_BUFFER_SIZE 1024
@@ -38,22 +37,12 @@ class CRtspPlayer
 	const AVPixelFormat						m_dstPixFmt{ AV_PIX_FMT_YUV420P };	//Destination PixelFormat
 	Gdiplus::GdiplusStartupInput			gdiplusStartupInput;
 	double									m_videoClock;						//VideoRender freq
-	double									audio_clock;						//AudioPlay freq
+	double									m_audioClock;						//AudioPlay freq
 	double									frame_timer;						//CurrentTime
 	double									frame_last_pts;						//LastFrame PTS
 	double									frame_last_delay;					//LastFrame delay
 	bool									m_quit{ FALSE };
 	
-	//struct PacketQueue
-	/*{
-		AVPacketList						*first_pkt;
-		AVPacketList						*last_pkt;
-		int									nb_packets;
-		int									size;
-		int									eof;
-		SDL_mutex*							mutex;
-		SDL_cond*							cond;
-	};*/
 	struct RingBuffer {
 		uint8_t*							data;
 		int									size;
@@ -145,7 +134,7 @@ private:
 	bool hasAudioNew();
 	void FindDecoderNew();
 	void ConfigAudioNew();
-	void AudioCallbackNew(int len);
+	void AudioCallbackNew(uint8_t* stream, int len);
 	double SynchronizeVideoNew(AVFrame *src_frame, double pt);
 	void AudioDecoderNew();
 	BOOL RenderNew();
@@ -163,7 +152,7 @@ private:
 	int RingBufferWrite(RingBuffer* rb, void* buffer, int len, int block);
 	int RingBufferRead(RingBuffer* rb, void* buffer, int len, int block);
 	int RingBufferSize(RingBuffer* rb);
-	void RingBufferEof(RingBuffer* rb, int initSize, int maxSize);
+	void RingBufferEof(RingBuffer* rb);
 
 
 };

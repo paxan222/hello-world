@@ -1,7 +1,6 @@
 #include "stdafx.h"
 #include "RtspPlayer.h"
 #include "easylogging++.h"
-#include <boost\thread.hpp>
 
 #pragma comment(lib, "SDL2")
 #ifdef _DEBUG
@@ -21,6 +20,8 @@
 
 BOOL CRtspPlayer::Open(){
 	OpenNew();
+	//Initialization CodecContext, Codec
+	InitNew();
 	return TRUE;
 }
 //Open stream
@@ -52,8 +53,6 @@ BOOL CRtspPlayer::OpenNew(){
 	}
 	//Dump format
 	av_dump_format(m_fmtCtx, 0, m_fileName.c_str(), 0);
-	//Initialization CodecContext, Codec
-	InitNew();
 	//LOG(INFO) << "StopOpen";
 	return TRUE;
 }
@@ -85,7 +84,7 @@ BOOL CRtspPlayer::InitNew(){
 		nullptr,
 		nullptr,
 		nullptr);
-
+	frame_timer = (double)av_gettime() / 1000000.0;
 	ThreadStartNew();
 	//LOG(INFO) << "StopInit";
 	return TRUE;
@@ -156,9 +155,8 @@ void CRtspPlayer::FindDecoderNew(){
 	//LOG(INFO) << "StopFindDecoder";
 }
 //AudioCallback
-void CRtspPlayer::AudioCallbackNew(int len){
-
-	//ring_buffer_read(m_audioBuffer, m_fmtCtx->streams[m_audioStreamIndex], len, 1);
+void CRtspPlayer::AudioCallbackNew(uint8_t* stream, int len){
+	RingBufferRead(&m_audioBuffer, stream, len, 1);
 }
 //Init SDL_AudioSpec
 void CRtspPlayer::ConfigAudioNew(){
@@ -178,36 +176,36 @@ void CRtspPlayer::ConfigAudioNew(){
 }
 //Demuxer
 void CRtspPlayer::DemuxerNew(){
-	boost::thread([this]{
-	//LOG(INFO) << "StartDemuxer";
-	AVPacket packet;
-	while (av_read_frame(m_fmtCtx, &packet) >= 0){
-		if (m_quit){
-			av_free_packet(&packet);
-			break;
-		}
-		if (packet.stream_index == m_videoStreamIndex){
-			//LOG(INFO) << "PUSH";
-			PacketQueuePush(&m_videoq, &packet);
-		}
-		else{
-			if (packet.stream_index == m_audioStreamIndex){
-				PacketQueuePush(&m_audioq, &packet);
+	std::thread([this]{
+		//LOG(INFO) << "StartDemuxer";
+		AVPacket packet;
+		while (av_read_frame(m_fmtCtx, &packet) >= 0){
+			if (m_quit){
+				av_free_packet(&packet);
+				break;
+			}
+			if (packet.stream_index == m_videoStreamIndex){
+				//LOG(INFO) << "PUSH";
+				PacketQueuePush(&m_videoq, &packet);
 			}
 			else{
-				av_free_packet(&packet);
+				if (packet.stream_index == m_audioStreamIndex){
+					PacketQueuePush(&m_audioq, &packet);
+				}
+				else{
+					av_free_packet(&packet);
+				}
 			}
 		}
-	}
-	PacketQueueEof(&m_videoq);
-	PacketQueueEof(&m_audioq);
-	//LOG(INFO) << "StopDemuxer";
-	//return 0;
-}).detach();
+		PacketQueueEof(&m_videoq);
+		PacketQueueEof(&m_audioq);
+		//LOG(INFO) << "StopDemuxer";
+		//return 0;
+	}).detach();
 }
 //DecoderVideo
 void CRtspPlayer::VideoDecoderNew(){
-	boost::thread([this]{
+	std::thread([this]{
 		AVFrame *frame;
 		frame = av_frame_alloc();
 		while (!m_quit){
@@ -236,41 +234,10 @@ void CRtspPlayer::VideoDecoderNew(){
 				}
 				pts *= av_q2d(m_fmtCtx->streams[m_videoStreamIndex]->time_base);
 				pts = SynchronizeVideoNew(frame, pts);
-
-				////TODO: Add frames to queue
-				Gdiplus::GdiplusStartup(&m_gdiplusToken, &gdiplusStartupInput, NULL);
-				RECT rect;	GetWindowRect(m_hMainWindow, &rect);
-				Gdiplus::Rect gdiRect;
-				gdiRect.X = 0;
-				gdiRect.Y = 0;
-				gdiRect.Width = abs(rect.right - rect.left);
-				gdiRect.Height = abs(rect.bottom - rect.top);
-				auto scaledBmp = static_cast<AVPicture*>(av_malloc(sizeof(AVPicture)));
-
-				if (avpicture_alloc(scaledBmp, AV_PIX_FMT_RGB32, gdiRect.Width, gdiRect.Height))
-					throw std::bad_alloc();
-
-				m_scaleCtx = sws_getCachedContext(m_scaleCtx, m_width, m_height, m_dstPixFmt, gdiRect.Width, gdiRect.Height, AV_PIX_FMT_RGB32, SWS_FAST_BILINEAR, nullptr, nullptr, nullptr);
-
-				// Convert the image from its native format to RGB
-				sws_scale(m_scaleCtx, (uint8_t const * const *)frame->data, frame->linesize, 0, m_videoCodecCtx->height, scaledBmp->data, scaledBmp->linesize);
-				Gdiplus::Bitmap *bmp = new Gdiplus::Bitmap(gdiRect.Width, gdiRect.Height, scaledBmp->linesize[0], PixelFormat32bppRGB, scaledBmp->data[0]);
-
-				HDC wndHdc = GetDC(m_hMainWindow);
-
-				Gdiplus::Graphics graphics(wndHdc);
-
-				graphics.DrawImage(bmp, gdiRect);
-
-				ReleaseDC(m_hMainWindow, wndHdc);
-
-				avpicture_free(scaledBmp);
-				delete bmp;
 			}
 			av_free_packet(&packet);
 		}
 		av_frame_free(&frame);
-		//return 0;
 	}).detach();
 }
 //Synctime
@@ -293,26 +260,42 @@ double CRtspPlayer::SynchronizeVideoNew(AVFrame *src_frame, double pts) {
 }
 //DecoderAudio
 void CRtspPlayer::AudioDecoderNew(){
-	AVFrame frame;
-	while (!m_quit){
-		av_frame_unref(&frame);
-		AVPacket packet;
-		//ToDO: If queue end
-		if (PacketQueuePop(&m_audioq, &packet, 1) < 0) {
-			// eof queue
-			break;
-		}
-		int got_frame;
-		if (avcodec_decode_audio4(m_audioCodecCtx, &frame, &got_frame, &packet) < 0){
+	std::thread([this]{
+		AVFrame frame;
+		while (!m_quit){
+			av_frame_unref(&frame);
+			AVPacket packet;
+			//ToDO: If queue end
+			if (PacketQueuePop(&m_audioq, &packet, 1) < 0) {
+				// eof queue
+				break;
+			}
+			int got_frame;
+			if (avcodec_decode_audio4(m_audioCodecCtx, &frame, &got_frame, &packet) < 0){
+				av_free_packet(&packet);
+				//LOG(ERROR) << "Failed to decode video packet";
+				break;
+			}
+			if (got_frame){
+				//TODO: Add frames to queue
+				int data_size = av_samples_get_buffer_size(NULL, m_audioCodecCtx->channels, frame.nb_samples, m_audioCodecCtx->sample_fmt, 1);
+				// Obtain audio clock
+				if (packet.pts != AV_NOPTS_VALUE) {
+					m_audioClock = av_q2d(m_fmtCtx->streams[m_audioStreamIndex]->time_base) * packet.pts;
+				}
+				else {
+					/* if no pts, then compute it */
+					m_audioClock += (double)data_size /
+						(m_audioCodecCtx->channels *
+						m_audioCodecCtx->sample_rate *
+						av_get_bytes_per_sample(m_audioCodecCtx->sample_fmt));
+				}
+				RingBufferWrite(&m_audioBuffer, frame.data[0], data_size, 1);
+			}
 			av_free_packet(&packet);
-			//LOG(ERROR) << "Failed to decode video packet";
-			break;
 		}
-		if (got_frame){
-			//TODO: Add frames to queue
-		}
-		av_free_packet(&packet);
-	}
+		RingBufferEof(&m_audioBuffer);
+	}).detach();
 }
 //Отрисовка
 BOOL CRtspPlayer::RenderNew(){
@@ -577,7 +560,7 @@ int CRtspPlayer::RingBufferSize(RingBuffer* rb){
 	SDL_UnlockMutex(rb->mutex);
 	return size;
 };
-void CRtspPlayer::RingBufferEof(RingBuffer* rb, int initSize, int maxSize){
+void CRtspPlayer::RingBufferEof(RingBuffer* rb){
 	assert(rb != NULL);
 
 	SDL_LockMutex(rb->mutex);
