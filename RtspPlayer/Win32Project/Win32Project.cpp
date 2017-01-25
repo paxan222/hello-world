@@ -6,6 +6,7 @@
 #include <gdiplus.h>
 #pragma comment(lib,"gdiplus.lib")
 #include "FFmpegPlayer.h"
+#include "RtspRecorder.h"
 #include <windows.h>
 #include <psapi.h>
 #include <stdio.h> 
@@ -90,6 +91,9 @@ INT_PTR CALLBACK	About(HWND, UINT, WPARAM, LPARAM);
 string				filename{ NULL };
 
 char				*path;
+//CFFmpegPlayer		*player;
+CRtspRecorder		*recorder;
+bool				switchsound;
 
 int APIENTRY _tWinMain(_In_ HINSTANCE hInstance,
 	_In_opt_ HINSTANCE hPrevInstance,
@@ -116,23 +120,29 @@ int APIENTRY _tWinMain(_In_ HINSTANCE hInstance,
 	}
 
 	processID = GetCurrentProcessId();
-	
+
 	std::thread([] {
 		MemLog* memLog = new MemLog("D:\\", processID);
 	}).detach();
 
 	//filename = "rtsp://localhost:8554/test";
+	//filename = "rtsp://admin:admin@192.168.11.231:554/RVi/1/1";
 	filename = "rtsp://admin:admin@192.168.11.183:554/cam/realmonitor?channel=1&subtype=0";
+	//filename = "rtsp://55555:55555@192.168.11.197:554/cam/realmonitor?channel=1&subtype=0";
 	//filename = "rtsp://admin:1q2w3e4r5t6y@192.168.11.108:554/Streaming/Channels/101?transportmode=unicast&profile=Profile_1";
-	//filename = "D:\\TestVideo\\123.mp4";
+	//filename = "D:\\TestVideo\\big_buck_bunny_480p_h264.mov";
 	//filename = "D:\\TestVideo\\FromRtsp.mov";
 	path = new char[filename.size() + 1];
 	copy(filename.begin(), filename.end(), path);
 	path[filename.size()] = '\0';
-	CFFmpegPlayer *player = new CFFmpegPlayer(path, NULL, NULL, NULL, hWnd);
-	player->Open();
-	player->Play();
 
+	/*player = new CFFmpegPlayer(path, NULL, NULL, NULL, 10000, hWnd);
+	player->Open();
+	
+	player->Play();*/
+	recorder = new CRtspRecorder(path);
+	recorder->Open();
+	recorder->StartReadAndWrite();
 	hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_WIN32PROJECT));
 
 	// Main message loop:
@@ -238,42 +248,24 @@ LRESULT CALLBACK WndProcMain(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 		case IDM_EXIT:
 			DestroyWindow(hWnd);
 			break;
-			/*case ID_FILE_OPEN:
-				filename = "D:\\TestVideo\\big_buck_bunny_480p_h264.mov";
-				path = new char[filename.size() + 1];
-				copy(filename.begin(), filename.end(), path);
-				path[filename.size()] = '\0';
-
-				player = new CFFmpegPlayer(path, nullptr, nullptr, nullptr, hWnd);
-				delete path;
-				player->Open();
-				break;
-				case ID_RTSP_OPEN:
-				filename = "rtsp://admin:admin@192.168.11.185:554/cam/realmonitor?channel=1&subtype=0";
-				path = new char[filename.size() + 1];
-				copy(filename.begin(), filename.end(), path);
-				path[filename.size()] = '\0';
-
-				player = new CFFmpegPlayer(path, nullptr, nullptr, nullptr, hWnd);
-				delete path;
-				player->Open();
-				break;
-				case ID_PLAY:
-				pbasePlayer = static_cast<CBasePlayer*>(player);
-				pbasePlayer->Play();
-				break;
-				case ID_PAUSE:
-				pbasePlayer = static_cast<CBasePlayer*>(player);
-				pbasePlayer->Pause();
-				break;
-				case ID_STOP:
-				pbasePlayer = static_cast<CBasePlayer*>(player);
-				pbasePlayer->Stop();
-				break;*/
+		case ID_FILE_OPEN:
+			if (!switchsound)
+				switchsound = true;
+			else
+				switchsound = false;
+			//player->SwitchSound(switchsound);
+			break;
+		case ID_STOP:
+			//player->Stop();
+			recorder->StopReadAndWrite();
+			break;
+		case ID_PLAY:
+			//player->Play();
+			break;
 		default:
 			return DefWindowProc(hWnd, message, wParam, lParam);
 		}
-		break;
+		break;	
 	case WM_PAINT:
 		hdc = BeginPaint(hWnd, &ps);
 		// TODO: Add any drawing code here...

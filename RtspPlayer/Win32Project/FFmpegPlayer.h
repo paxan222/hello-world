@@ -6,7 +6,7 @@
 class Frame	final
 {
 public:
-	using Ptr = std::unique_ptr < Frame >;
+	using Ptr = std::unique_ptr < Frame > ;
 
 	Frame() :
 		m_frame{ av_frame_alloc() }
@@ -37,12 +37,10 @@ private:
 	AVFrame *m_frame;
 };
 
-
-
 class Packet final
 {
 public:
-	using Ptr = std::unique_ptr < Packet >;
+	using Ptr = std::unique_ptr < Packet > ;
 
 	Packet() :
 		m_packet{ static_cast<decltype(m_packet)>(av_malloc(sizeof(*m_packet))) }
@@ -78,10 +76,13 @@ private:
 	AVPacket *m_packet;
 };
 
-
+static int								timeout;
+static bool								timeoutFlag;
+static unsigned long					timeoutPrev;
 
 class CFFmpegPlayer : public CBasePlayer
 {
+	int										m_timeout;
 	const AVPixelFormat						m_dstPixFmt{ AV_PIX_FMT_YUV420P };
 	const AVSampleFormat					m_dstSndFmt{ AV_SAMPLE_FMT_S16 };
 	const Uint16							AUDIO_SAMPLES{ 1024 };
@@ -98,7 +99,7 @@ class CFFmpegPlayer : public CBasePlayer
 	AVCodecContext							*m_audioCtx, *m_videoCtx;
 	int										m_videoStreamIndex{ -1 }, m_audioStreamIndex{ -1 };
 
-	AVFrame									*pFrame{ NULL};
+	AVFrame									*pFrame{ NULL };
 	AVPacket								m_packet;
 	AVPixelFormat							*m_pixFmt;
 	int										m_width{ 0 }, m_height{ 0 };
@@ -113,7 +114,7 @@ class CFFmpegPlayer : public CBasePlayer
 	SDL_AudioDeviceID						m_audioDevice;
 	Gdiplus::GdiplusStartupInput			gdiplusStartupInput;
 	ULONG_PTR								m_gdiplusToken;
-
+	
 	enum class state
 	{
 		None,
@@ -126,12 +127,12 @@ class CFFmpegPlayer : public CBasePlayer
 	{
 		std::function<void(AVPicture*)>		deleterPicture;
 
-		using PicturePtr = std::unique_ptr < AVPicture, decltype(deleterPicture) >;
+		using PicturePtr = std::unique_ptr < AVPicture, decltype(deleterPicture) > ;
 
 		Queue::ThreadSafe<Packet::Ptr>		qAudioPackets{ DEMUXER_QUEUE_SIZE };
 		Queue::ThreadSafe<Packet::Ptr>		qVideoPackets{ DEMUXER_QUEUE_SIZE };
 		Queue::ThreadSafe<Frame::Ptr>		qAudioFrames{ AUDIO_QUEUE_SIZE };
-		Queue::ThreadSafe<PicturePtr>		qVideoFrames/*{ VIDEO_QUEUE_SIZE }*/;
+		Queue::ThreadSafe<Frame::Ptr>		qVideoFrames/*{ VIDEO_QUEUE_SIZE }*/;
 
 		state								demux_state{ state::None };
 		state								aDecode_state{ state::None };
@@ -175,6 +176,7 @@ public:
 		FDecodeCallback fOnFrame,
 		FFileEndCallback fOnEof,
 		FEndInitCallback fOnInit,
+		int timeOut,
 		HWND h_MainWindow)
 		: CBasePlayer(pchFileName, fOnFrame, fOnEof, fOnInit, h_MainWindow)
 		, m_fileName(pchFileName)
@@ -182,6 +184,7 @@ public:
 		, m_cbOnFrame(fOnFrame)
 		, m_cbOnEof(fOnEof)
 	{
+		m_timeout = timeOut;
 		m_decoder.deleterPicture = [](AVPicture* pic)
 		{
 			avpicture_free(pic);
@@ -224,9 +227,6 @@ public:
 
 	BOOL Open();
 
-	BOOL OpenRtsp();
-
-	void PlayMain();
 	BOOL Play() override;
 
 	BOOL Stop() override;
@@ -276,7 +276,6 @@ private:
 	Decoder::PicturePtr convertColorSpace(Frame::Ptr frame);
 
 	void threadsCreate();
-	void ThreeInOne();
 	void startDemuxer();
 	void startDecoderVideo();
 	void startDecoderAudio();
@@ -300,7 +299,7 @@ private:
 	void startAudio();
 
 	BOOL Init();
-
+	static int Interrupt_cb(void *ctx);
 	BOOL InputData(BYTE* pBuf, DWORD dwSize) override;
 };
 

@@ -38,11 +38,13 @@
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
-  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Label="UserMacros">
+    <NuGetPackageImportStamp>718558ee</NuGetPackageImportStamp>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
     <IncludePath>D:\repo\hello-world\RtspPlayer\Win32Project;C:\Program Files %28x86%29\Visual Leak Detector\include;$(VC_IncludePath);$(WindowsSDK_IncludePath);$(WindowsSdkDir_80)Include\shared;$(WindowsSdkDir_80)Include\um;$(SolutionDir)assemblies\d3d9\Include\;$(SolutionDir)assemblies\ffmpeg\include\;$(SolutionDir)assemblies\dahua;$(SolutionDir)assemblies\jufeng\include;$(SolutionDir)assemblies\hikvision;$(SolutionDir)assemblies\SDL2-2.0.3\include\;$(SolutionDir)assemblies\sunell\include</IncludePath>
-    <LibraryPath>D:\repo\boost_1_63_0\stage\lib;C:\Program Files %28x86%29\Visual Leak Detector\lib\Win32;$(SolutionDir)assemblies\d3d9\lib\x86\;$(VC_LibraryPath_x86);$(WindowsSDK_LibraryPath_x86);$(WindowsSdkDir_80)lib\win8\um\x86;$(SolutionDir)assemblies\ffmpeg\lib\;$(SolutionDir)assemblies\dahua;$(SolutionDir)assemblies\jufeng\lib;$(SolutionDir)assemblies\hikvision;$(SolutionDir)assemblies\sunell\lib;$(SolutionDir)assemblies\SDL2-2.0.3\lib\$(PlatformTarget)\</LibraryPath>
+    <LibraryPath>C:\Program Files %28x86%29\Visual Leak Detector\lib\Win32;$(SolutionDir)assemblies\d3d9\lib\x86\;$(VC_LibraryPath_x86);$(WindowsSDK_LibraryPath_x86);$(WindowsSdkDir_80)lib\win8\um\x86;$(SolutionDir)assemblies\ffmpeg\lib\;$(SolutionDir)assemblies\dahua;$(SolutionDir)assemblies\jufeng\lib;$(SolutionDir)assemblies\hikvision;$(SolutionDir)assemblies\sunell\lib;$(SolutionDir)assemblies\SDL2-2.0.3\lib\$(PlatformTarget)\</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
@@ -66,7 +68,7 @@
       <IgnoreSpecificDefaultLibraries>
       </IgnoreSpecificDefaultLibraries>
       <AdditionalOptions> /verbose:lib %(AdditionalOptions)</AdditionalOptions>
-      <AdditionalLibraryDirectories>D:\repo\boost_1_63_0\stage\lib;$(SolutionDir)assemblies\DLL;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(SolutionDir)assemblies\DLL;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -101,6 +103,7 @@
     <ClInclude Include="Resource.h" />
     <ClInclude Include="RtspDecoder.h" />
     <ClInclude Include="RtspPlayer.h" />
+    <ClInclude Include="RtspRecorder.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="SunellDecoder.h" />
     <ClInclude Include="SunellPlayer.h" />
@@ -123,6 +126,7 @@
     <ClCompile Include="playback.cpp" />
     <ClCompile Include="RtspDecoder.cpp" />
     <ClCompile Include="RtspPlayer.cpp" />
+    <ClCompile Include="RtspRecorder.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
@@ -142,6 +146,5 @@
     <Image Include="Win32Project.ico" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
-  <ImportGroup Label="ExtensionTargets">
-  </ImportGroup>
+  <ImportGroup Label="ExtensionTargets" />
 </Project>
