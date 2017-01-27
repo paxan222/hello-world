@@ -22,13 +22,18 @@ class CRtspRecorder{
 	AVOutputFormat *m_outputFmt{ NULL };
 	AVStream  *m_outputVideoStream{ NULL }, *m_outputAudioStream{ NULL };
 	bool m_stop{ false };
+
+	AVCodecContext *m_videoCodec = nullptr;
+	AVCodecContext *m_audioCodec = nullptr;
 public:
 	CRtspRecorder(PCHAR filename){
 		m_filename = filename;
 	}
 	~CRtspRecorder(){
+		av_dict_free(&m_dictionary);
 		avformat_free_context(m_inputFmtCtx);
 		avformat_free_context(m_outputFmtCtx);
+		
 	}
 
 	BOOL Open();

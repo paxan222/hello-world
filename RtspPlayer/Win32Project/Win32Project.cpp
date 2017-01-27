@@ -121,9 +121,9 @@ int APIENTRY _tWinMain(_In_ HINSTANCE hInstance,
 
 	processID = GetCurrentProcessId();
 
-	std::thread([] {
+	/*std::thread([] {
 		MemLog* memLog = new MemLog("D:\\", processID);
-	}).detach();
+	}).detach();*/
 
 	//filename = "rtsp://localhost:8554/test";
 	//filename = "rtsp://admin:admin@192.168.11.231:554/RVi/1/1";
