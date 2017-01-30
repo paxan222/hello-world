@@ -1,46 +1,69 @@
 #include "stdafx.h"
 #include <stdio.h>
 #include <stdlib.h>
-#include <iostream>
-#include <fstream>
-#include <sstream>
 
 extern "C"
 {
 #include <libavcodec\avcodec.h>
 #include <libavformat\avformat.h>
 #include <libavformat\avio.h>
-#include <libswscale\swscale.h>
 }
 
+static int timePrev = 0;
+static int interruptTimeout = 0;
+static bool interruptFlag = false;
+
 class CRtspRecorder{
-	std::string m_filename;
-	AVDictionary *m_dictionary{ NULL };
-	AVFormatContext *m_inputFmtCtx, *m_outputFmtCtx{ NULL };
-	int m_videoStreamIndex, m_audioStreamIndex;
-	AVPacket m_packet;
-	AVOutputFormat *m_outputFmt{ NULL };
-	AVStream  *m_outputVideoStream{ NULL }, *m_outputAudioStream{ NULL };
-	bool m_stop{ false };
+
+	std::string					m_inputFilename;
+	int							m_connectionTimeout = 0;
+	std::string					m_outputFilename;
+	AVDictionary				*m_dictionary{ NULL };
+	AVFormatContext				*m_inputFmtCtx{ NULL }, *m_outputFmtCtx{ NULL };
+	int							m_videoStreamIndex = -1, m_audioStreamIndex = -1;
+	AVPacket					m_packet;
+	AVOutputFormat				*m_outputFmt{ NULL };
+	AVStream					*m_inputVideoStream{ NULL }, *m_inputAudioStream{ NULL }, *m_outputVideoStream{ NULL }, *m_outputAudioStream{ NULL };
+	bool						m_stop{ false };
 
 	AVCodecContext *m_videoCodec = nullptr;
 	AVCodecContext *m_audioCodec = nullptr;
+
 public:
-	CRtspRecorder(PCHAR filename){
-		m_filename = filename;
+	CRtspRecorder(PCHAR inputFilename, int connectionTimeout, PCHAR outputFilename){
+
+		m_inputFilename = inputFilename;
+		m_connectionTimeout = connectionTimeout;
+		m_outputFilename = outputFilename;
 	}
+
 	~CRtspRecorder(){
+		avformat_close_input(&m_inputFmtCtx);
+		m_inputFilename = "";
+		m_connectionTimeout = 0;
+		m_outputFilename = "";
 		av_dict_free(&m_dictionary);
 		avformat_free_context(m_inputFmtCtx);
 		avformat_free_context(m_outputFmtCtx);
-		
+		m_videoStreamIndex = -1;
+		m_audioStreamIndex = -1;
+		av_free(m_outputFmt);
+		av_free(m_inputVideoStream);
+		av_free(m_inputAudioStream);
+		av_free(m_outputVideoStream);
+		av_free(m_outputAudioStream);
+		m_stop = false;
+		avcodec_close(m_videoCodec);
+		avcodec_close(m_audioCodec);
 	}
 
-	BOOL Open();
-	BOOL StartReadAndWrite();
-	BOOL StopReadAndWrite();
+	BOOL Open(); //Open stream/file
+	BOOL StartRecord(); // start record thread
+	BOOL StopRecord(); // stop record thread
 
 
 private:
-	BOOL Init();
+	BOOL Init(); //init input and output files
+	static int Interrupt_cb(void *ctx); // interrupt timeout callback
+
 };

@@ -88,9 +88,11 @@ BOOL				InitInstance(HINSTANCE, int);
 LRESULT CALLBACK	WndProcMain(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK	About(HWND, UINT, WPARAM, LPARAM);
 
-string				filename{ NULL };
+string				filenameInput{ NULL };
+string				filenameOutput{ NULL };
 
-char				*path;
+char				*pathInput;
+char				*pathOutput;
 //CFFmpegPlayer		*player;
 CRtspRecorder		*recorder;
 bool				switchsound;
@@ -125,24 +127,41 @@ int APIENTRY _tWinMain(_In_ HINSTANCE hInstance,
 		MemLog* memLog = new MemLog("D:\\", processID);
 	}).detach();*/
 
-	//filename = "rtsp://localhost:8554/test";
-	//filename = "rtsp://admin:admin@192.168.11.231:554/RVi/1/1";
-	filename = "rtsp://admin:admin@192.168.11.183:554/cam/realmonitor?channel=1&subtype=0";
-	//filename = "rtsp://55555:55555@192.168.11.197:554/cam/realmonitor?channel=1&subtype=0";
-	//filename = "rtsp://admin:1q2w3e4r5t6y@192.168.11.108:554/Streaming/Channels/101?transportmode=unicast&profile=Profile_1";
-	//filename = "D:\\TestVideo\\big_buck_bunny_480p_h264.mov";
-	//filename = "D:\\TestVideo\\FromRtsp.mov";
-	path = new char[filename.size() + 1];
-	copy(filename.begin(), filename.end(), path);
-	path[filename.size()] = '\0';
+	//filenameInput = "rtsp://localhost:8554/test";
+	//filenameInput = "rtsp://admin:admin@192.168.11.231:554/RVi/1/1";
+	filenameInput = "rtsp://admin:admin@192.168.11.183:554/cam/realmonitor?channel=1&subtype=0";
+	//filenameInput = "rtsp://55555:55555@192.168.11.197:554/cam/realmonitor?channel=1&subtype=0";
+	//filenameInput = "rtsp://admin:1q2w3e4r5t6y@192.168.11.108:554/Streaming/Channels/101?transportmode=unicast&profile=Profile_1";
+	//filenameInput = "D:\\TestVideo\\big_buck_bunny_480p_h264.mov";
+	//filenameInput = "D:\\TestVideo\\FromRtsp.mov";
 
+	//filenameInput = "rtsp://55555:55555@192.168.11.178:554/cam/realmonitor?channel=1&subtype=0";
+	//filenameInput = "rtsp ://55555:55555@192.168.11.185:554/cam/realmonitor?channel=1&subtype=0";
+	//filenameInput = "rtsp ://55555:55555@192.168.11.183:554/cam/realmonitor?channel=1&subtype=0";
+	//filenameInput = "rtsp ://55555:55555@192.168.11.197:554/cam/realmonitor?channel=1&subtype=0";
+	//filenameInput = "rtsp ://55555:55555@192.168.11.198:554/cam/realmonitor?channel=1&subtype=0";
+	//filenameInput = "rtsp ://55555:55555@192.168.11.187:554/cam/realmonitor?channel=1&subtype=0";
+	//filenameInput = "rtsp ://55555:55555@192.168.11.219:554/cam/realmonitor?channel=1&subtype=0";
+	//filenameInput = "rtsp ://55555:55555@192.168.11.199:554/cam/realmonitor?channel=1&subtype=0";
+	//filenameInput = "rtsp ://55555:55555@192.168.11.112:554/cam/realmonitor?channel=1&subtype=01";
+	//filenameInput = "rtsp ://55555:Five55555@192.168.11.118:554/cam/realmonitor?channel=1&subtype=01";
+	//filenameInput = "rtsp ://55555:Five55555@192.168.11.108:554/cam/realmonitor?channel=1&subtype=01";
+	//filenameInput = "rtsp ://192.168.11.68:554/snl/live/1/1/B0601YE=-dBL3hYFJiG5Y";
+	//filenameInput = "rtsp ://192.168.11.180:553/snl/live/1/1/B0601YE=-dBL3hYFJiG5Y";
+	filenameOutput = "D:\\test%i.mkv";
+	pathInput = new char[filenameInput.size() + 1];
+	copy(filenameInput.begin(), filenameInput.end(), pathInput);
+	pathInput[filenameInput.size()] = '\0';
+	pathOutput = new char[filenameOutput.size() + 1];
+	copy(filenameOutput.begin(), filenameOutput.end(), pathOutput);
+	pathOutput[filenameOutput.size()] = '\0';
 	/*player = new CFFmpegPlayer(path, NULL, NULL, NULL, 10000, hWnd);
 	player->Open();
 	
 	player->Play();*/
-	recorder = new CRtspRecorder(path);
-	recorder->Open();
-	recorder->StartReadAndWrite();
+	recorder = new CRtspRecorder(pathInput,1000, pathOutput);
+	if(recorder->Open() != FALSE)
+		recorder->StartRecord();
 	hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_WIN32PROJECT));
 
 	// Main message loop:
@@ -257,7 +276,7 @@ LRESULT CALLBACK WndProcMain(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 			break;
 		case ID_STOP:
 			//player->Stop();
-			recorder->StopReadAndWrite();
+			recorder->StopRecord();
 			break;
 		case ID_PLAY:
 			//player->Play();
