@@ -60,7 +60,7 @@ public:
 	BOOL Open(); //Open stream/file
 	BOOL StartRecord(); // start record thread
 	BOOL StopRecord(); // stop record thread
-
+	BOOL StartTransferRecord();
 
 private:
 	BOOL Init(); //init input and output files

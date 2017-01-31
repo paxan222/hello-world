@@ -161,7 +161,7 @@ int APIENTRY _tWinMain(_In_ HINSTANCE hInstance,
 	player->Play();*/
 	recorder = new CRtspRecorder(pathInput,1000, pathOutput);
 	if(recorder->Open() != FALSE)
-		recorder->StartRecord();
+		recorder->StartTransferRecord();
 	hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_WIN32PROJECT));
 
 	// Main message loop:
