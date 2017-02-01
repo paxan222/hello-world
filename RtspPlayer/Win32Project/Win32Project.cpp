@@ -148,7 +148,7 @@ int APIENTRY _tWinMain(_In_ HINSTANCE hInstance,
 	//filenameInput = "rtsp ://55555:Five55555@192.168.11.108:554/cam/realmonitor?channel=1&subtype=01";
 	//filenameInput = "rtsp ://192.168.11.68:554/snl/live/1/1/B0601YE=-dBL3hYFJiG5Y";
 	//filenameInput = "rtsp ://192.168.11.180:553/snl/live/1/1/B0601YE=-dBL3hYFJiG5Y";
-	filenameOutput = "D:\\test%i.mkv";
+	filenameOutput = "D:\\test.mkv";
 	pathInput = new char[filenameInput.size() + 1];
 	copy(filenameInput.begin(), filenameInput.end(), pathInput);
 	pathInput[filenameInput.size()] = '\0';
@@ -161,7 +161,7 @@ int APIENTRY _tWinMain(_In_ HINSTANCE hInstance,
 	player->Play();*/
 	recorder = new CRtspRecorder(pathInput,1000, pathOutput);
 	if(recorder->Open() != FALSE)
-		recorder->StartTransferRecord();
+		recorder->StartRecord();
 	hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_WIN32PROJECT));
 
 	// Main message loop:

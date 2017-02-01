@@ -60,10 +60,9 @@ public:
 	BOOL Open(); //Open stream/file
 	BOOL StartRecord(); // start record thread
 	BOOL StopRecord(); // stop record thread
-	BOOL StartTransferRecord();
 
 private:
 	BOOL Init(); //init input and output files
 	static int Interrupt_cb(void *ctx); // interrupt timeout callback
-
+	static int WritePacket_cb(void* opaque, uint8_t *buf, int buf_size);
 };
