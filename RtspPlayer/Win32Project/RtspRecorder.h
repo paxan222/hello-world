@@ -15,11 +15,11 @@ static bool interruptFlag = false;
 
 class CRtspRecorder{
 
-	std::string					m_inputFilename;
+	std::string					m_inputFilename, m_inputFilename2;
 	int							m_connectionTimeout = 0;
 	std::string					m_outputFilename;
 	AVDictionary				*m_dictionary{ NULL };
-	AVFormatContext				*m_inputFmtCtx{ NULL }, *m_outputFmtCtx{ NULL };
+	AVFormatContext				*m_inputFmtCtx{ NULL }, *m_inputFmtCtx2{ NULL }, *m_outputFmtCtx{ NULL };
 	int							m_videoStreamIndex = -1, m_audioStreamIndex = -1;
 	AVPacket					m_packet;
 	AVOutputFormat				*m_outputFmt{ NULL };
@@ -30,9 +30,10 @@ class CRtspRecorder{
 	AVCodecContext *m_audioCodec = nullptr;
 
 public:
-	CRtspRecorder(PCHAR inputFilename, int connectionTimeout, PCHAR outputFilename){
+	CRtspRecorder(PCHAR inputFilename, PCHAR inputFilename2, int connectionTimeout, PCHAR outputFilename){
 
 		m_inputFilename = inputFilename;
+		m_inputFilename2 = inputFilename2;
 		m_connectionTimeout = connectionTimeout;
 		m_outputFilename = outputFilename;
 	}
@@ -59,10 +60,13 @@ public:
 
 	BOOL Open(); //Open stream/file
 	BOOL StartRecord(); // start record thread
+	BOOL Cut();
+	BOOL Merge();
 	BOOL StopRecord(); // stop record thread
 
 private:
 	BOOL Init(); //init input and output files
 	static int Interrupt_cb(void *ctx); // interrupt timeout callback
 	static int WritePacket_cb(void* opaque, uint8_t *buf, int buf_size);
+	void RecalculateTimeStamps(AVPacket packet, AVRational inputTimeBase, AVRational outputTimeBase);
 };

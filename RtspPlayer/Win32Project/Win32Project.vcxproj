@@ -95,11 +95,13 @@
     <ClInclude Include="DahuaPlayer.h" />
     <ClInclude Include="DShowPlayer.h" />
     <ClInclude Include="easylogging++.h" />
+    <ClInclude Include="Export.h" />
     <ClInclude Include="FFmpegPlayer.h" />
     <ClInclude Include="HikDecoder.h" />
     <ClInclude Include="HikPlayer.h" />
     <ClInclude Include="playback.h" />
     <ClInclude Include="Queue.h" />
+    <ClInclude Include="Record.h" />
     <ClInclude Include="Resource.h" />
     <ClInclude Include="RtspDecoder.h" />
     <ClInclude Include="RtspPlayer.h" />
@@ -119,11 +121,13 @@
     <ClCompile Include="DahuaPlayer.cpp" />
     <ClCompile Include="dllmain.cpp" />
     <ClCompile Include="DShowPlayer.cpp" />
+    <ClCompile Include="Export.cpp" />
     <ClCompile Include="FFmpegPlayer.cpp" />
     <ClCompile Include="HikDecoder.cpp" />
     <ClCompile Include="HikPlayer.cpp" />
     <ClCompile Include="MemLog.cpp" />
     <ClCompile Include="playback.cpp" />
+    <ClCompile Include="Record.cpp" />
     <ClCompile Include="RtspDecoder.cpp" />
     <ClCompile Include="RtspPlayer.cpp" />
     <ClCompile Include="RtspRecorder.cpp" />

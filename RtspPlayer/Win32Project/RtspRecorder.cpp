@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "RtspRecorder.h"
+#include <list>   
 
 BOOL CRtspRecorder::Open(){
 
@@ -12,7 +13,7 @@ BOOL CRtspRecorder::Open(){
 	}
 	else
 	{
-		m_dictionary = NULL;
+		m_dictionary = nullptr;
 	}
 
 	if (Init() == FALSE){
@@ -32,7 +33,7 @@ int CRtspRecorder::Interrupt_cb(void *ctx){
 FILE *file = fopen("D:\\testByte.mkv", "wb");
 
 int CRtspRecorder::WritePacket_cb(void* opaque, uint8_t *buf, int buf_size){
-	/*Для избавления от статики надо использовать 
+	/*Для избавления от статики надо использовать
 	CRtspRecorder* recorder = static_cast<CRtspRecorder*>(opaque);
 	recorder->m_RcvDtCb(buf, buf_size);
 	return 0;
@@ -44,8 +45,8 @@ BOOL CRtspRecorder::Init(){
 	m_inputFmtCtx = avformat_alloc_context();
 
 	//Connection with interrupt callback
-	m_inputFmtCtx->interrupt_callback.callback = Interrupt_cb;
-	m_inputFmtCtx->interrupt_callback.opaque = 0;
+	//m_inputFmtCtx->interrupt_callback.callback = Interrupt_cb;
+	//m_inputFmtCtx->interrupt_callback.opaque = 0;
 	timePrev = GetTickCount();
 	interruptTimeout = m_connectionTimeout;
 
@@ -56,6 +57,14 @@ BOOL CRtspRecorder::Init(){
 
 	//Find stream info
 	avformat_find_stream_info(m_inputFmtCtx, nullptr);
+
+	/*--------------Open secondFile----------------------*/
+	if (avformat_open_input(&m_inputFmtCtx2, m_inputFilename2.c_str(), nullptr, &m_dictionary) != 0){
+		return FALSE;
+	}
+	//Find stream info
+	avformat_find_stream_info(m_inputFmtCtx2, nullptr);
+	/*---------------------------------------------------*/
 
 	if (m_outputFilename == ""){
 		//Guess outputformat
@@ -120,8 +129,8 @@ BOOL CRtspRecorder::Init(){
 		//Finding inputStreams and creating outPutStreams
 		//Video
 		m_videoStreamIndex = av_find_best_stream(m_inputFmtCtx, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
-		m_inputVideoStream = m_inputFmtCtx->streams[m_videoStreamIndex];
 		if (m_videoStreamIndex >= 0){
+			m_inputVideoStream = m_inputFmtCtx->streams[m_videoStreamIndex];
 			m_videoCodec = m_inputVideoStream->codec;
 			auto codec = avcodec_find_encoder(m_outputFmt->video_codec);
 			m_outputVideoStream = avformat_new_stream(m_outputFmtCtx, codec);
@@ -129,8 +138,8 @@ BOOL CRtspRecorder::Init(){
 		}
 		//Audio
 		m_audioStreamIndex = av_find_best_stream(m_inputFmtCtx, AVMEDIA_TYPE_AUDIO, -1, -1, nullptr, 0);
-		m_inputAudioStream = m_inputFmtCtx->streams[m_audioStreamIndex];
 		if (m_audioStreamIndex >= 0){
+			m_inputAudioStream = m_inputFmtCtx->streams[m_audioStreamIndex];
 			m_audioCodec = m_inputAudioStream->codec;
 			auto codec = avcodec_find_encoder(m_outputFmt->video_codec);
 			m_outputAudioStream = avformat_new_stream(m_outputFmtCtx, codec);
@@ -138,15 +147,19 @@ BOOL CRtspRecorder::Init(){
 		}
 		//Open outputfile, if return "<0" exit
 		if (avio_open(&m_outputFmtCtx->pb, m_outputFilename.c_str(), AVIO_FLAG_WRITE) < 0){
-		return FALSE;
+			return FALSE;
 		}
 	}
 	//Write header of outputFile
 	avformat_write_header(m_outputFmtCtx, nullptr);
-
 	return TRUE;
 }
 
+void CRtspRecorder::RecalculateTimeStamps(AVPacket packet, AVRational inputTimeBase, AVRational outputTimeBase ){
+	packet.pts = av_rescale_q(packet.pts, inputTimeBase, outputTimeBase);
+	packet.dts = packet.pts;
+	packet.duration = av_rescale_q(packet.duration, inputTimeBase, outputTimeBase);
+}
 BOOL CRtspRecorder::StartRecord(){
 	std::thread([this]{
 		while (!m_stop){
@@ -159,16 +172,12 @@ BOOL CRtspRecorder::StartRecord(){
 			//Recalculate pts, dts and duration
 			if (m_packet.stream_index == m_videoStreamIndex)
 			{
-				m_packet.pts = av_rescale_q(m_packet.pts, m_inputVideoStream->time_base, m_outputVideoStream->time_base);
-				m_packet.dts = AV_NOPTS_VALUE;
-				m_packet.duration = av_rescale_q(m_packet.duration, m_inputVideoStream->time_base, m_outputVideoStream->time_base);
+				RecalculateTimeStamps(m_packet, m_inputVideoStream->time_base, m_outputVideoStream->time_base);
 				m_packet.stream_index = m_outputVideoStream->index;
 			}
 			if (m_packet.stream_index == m_audioStreamIndex)
 			{
-				m_packet.pts = av_rescale_q(m_packet.pts, m_inputFmtCtx->streams[m_audioStreamIndex]->time_base, m_outputAudioStream->time_base);
-				m_packet.dts = AV_NOPTS_VALUE;
-				m_packet.duration = av_rescale_q(m_packet.duration, m_inputFmtCtx->streams[m_audioStreamIndex]->time_base, m_outputAudioStream->time_base);
+				RecalculateTimeStamps(m_packet, m_inputAudioStream->time_base, m_outputAudioStream->time_base);
 				m_packet.stream_index = m_outputAudioStream->index;
 			}
 			//Write the packet
@@ -179,7 +188,142 @@ BOOL CRtspRecorder::StartRecord(){
 		//Write trailer of outputFile and close input and output
 		av_write_trailer(m_outputFmtCtx);
 		if (m_outputFilename != ""){
-			avio_close(m_outputFmtCtx->pb); 
+			avio_close(m_outputFmtCtx->pb);
+		}
+		else{
+			fclose(file);
+		}
+	}).detach();
+	return TRUE;
+}
+
+BOOL CRtspRecorder::Cut(){
+	std::thread([this]{
+		int starttime = 160;//miliseconds
+		int endtime = 16000;
+		int64_t starttime_int64 = starttime;
+		int64_t endtime_int64 = endtime ;
+
+		auto deltaPts = (m_inputVideoStream->time_base.den * m_inputVideoStream->r_frame_rate.den) / (m_inputVideoStream->time_base.num * m_inputVideoStream->r_frame_rate.num);
+		if (endtime_int64 > m_inputFmtCtx->duration * 1000 / AV_TIME_BASE){
+			goto PointA;
+		}
+		while (!m_stop){
+			av_init_packet(&m_packet);
+			if (av_read_frame(m_inputFmtCtx, &m_packet)){
+				//End of packets
+				break;
+			}
+			//Init packet
+			//Recalculate pts, dts and duration
+			if (m_packet.stream_index == m_videoStreamIndex)
+			{
+				RecalculateTimeStamps(m_packet, m_inputVideoStream->time_base, m_outputVideoStream->time_base);
+				m_packet.stream_index = m_outputVideoStream->index;
+			}
+			if (m_packet.stream_index == m_audioStreamIndex)
+			{
+				RecalculateTimeStamps(m_packet, m_inputAudioStream->time_base, m_outputAudioStream->time_base);
+				m_packet.stream_index = m_outputAudioStream->index;
+			}
+			//Write the packet
+			auto avq2d = av_q2d(m_outputAudioStream->time_base);
+			auto pts = m_packet.pts * 1000 * avq2d;
+			if (pts >= starttime_int64 && pts <= endtime_int64){
+				_RPT1(0, "Pts: %i\t endTime:%i\n", m_packet.pts, endtime_int64);
+				av_interleaved_write_frame(m_outputFmtCtx, &m_packet);
+			}
+			//Free packet
+			av_free_packet(&m_packet);
+		}
+		PointA:
+		//Write trailer of outputFile and close input and output
+		av_write_trailer(m_outputFmtCtx);
+		if (m_outputFilename != ""){
+			avio_close(m_outputFmtCtx->pb);
+		}
+		else{
+			fclose(file);
+		}
+	}).detach();
+	return TRUE;
+}
+
+
+BOOL CRtspRecorder::Merge(){
+	std::thread([this]{
+		FILE *ptsFile = fopen("D:\\TestVideo\\pts.txt", "w");
+		int lastVPts = 0;
+		int lastPos = 0;
+		int deltaVPts = (m_inputVideoStream->time_base.den * m_inputVideoStream->r_frame_rate.den) / (m_inputVideoStream->time_base.num * m_inputVideoStream->r_frame_rate.num);
+		//int deltaAPts = (m_inputAudioStream->time_base.den * m_inputAudioStream->r_frame_rate.den) / (m_inputAudioStream->time_base.num * m_inputAudioStream->r_frame_rate.num);
+		int pos = 0;
+		while (!m_stop){
+			av_init_packet(&m_packet);
+			while (!av_read_frame(m_inputFmtCtx, &m_packet)){
+				//Init packet
+				//Recalculate pts, dts and duration
+				if (m_packet.stream_index == m_videoStreamIndex)
+				{
+					RecalculateTimeStamps(m_packet, m_inputVideoStream->time_base, m_outputVideoStream->time_base);
+					m_packet.stream_index = m_outputVideoStream->index;
+
+				}
+				if (m_packet.stream_index == m_audioStreamIndex)
+				{
+					RecalculateTimeStamps(m_packet, m_inputAudioStream->time_base, m_outputAudioStream->time_base);
+					m_packet.stream_index = m_outputAudioStream->index;
+				}
+				//Write the packet
+				lastVPts = m_packet.pts; lastPos = m_packet.pos;
+				fprintf(ptsFile, "---------------\n");
+				fprintf(ptsFile, "PTS1: %f\n", (float)m_packet.pts / 1000);
+				fprintf(ptsFile, "DTS1: %f\n", (float)m_packet.dts);
+				fprintf(ptsFile, "POS1: %f\n", (float)m_packet.pos);
+				fprintf(ptsFile, "DUR1: %f\n", (float)m_packet.duration);
+				fprintf(ptsFile, "---------------\n");
+				av_interleaved_write_frame(m_outputFmtCtx, &m_packet);
+				//Free packet
+				av_free_packet(&m_packet);
+				av_init_packet(&m_packet);
+			}		
+			avformat_close_input(&m_inputFmtCtx);
+			while (!av_read_frame(m_inputFmtCtx2, &m_packet)){
+				//Init packet
+				//Recalculate pts, dts and duration
+				m_packet.pos = lastPos +327;
+				m_packet.pts = lastVPts + deltaVPts;
+				if (m_packet.stream_index == m_videoStreamIndex)
+				{
+					RecalculateTimeStamps(m_packet, m_inputVideoStream->time_base, m_outputVideoStream->time_base);
+					m_packet.stream_index = m_outputVideoStream->index;
+				}
+				if (m_packet.stream_index == m_audioStreamIndex)
+				{
+					RecalculateTimeStamps(m_packet, m_inputAudioStream->time_base, m_outputAudioStream->time_base);
+					m_packet.stream_index = m_outputAudioStream->index;
+				}
+				//Write the packet
+				lastVPts = m_packet.pts; lastPos = m_packet.pos;
+				fprintf(ptsFile, "---------------\n");
+				fprintf(ptsFile, "PTS: %f\n", (float)m_packet.pts / 1000);
+				fprintf(ptsFile, "DTS: %f\n", (float)m_packet.dts);
+				fprintf(ptsFile, "POS: %f\n", (float)m_packet.pos);
+				fprintf(ptsFile, "DUR: %f\n", (float)m_packet.duration);
+				fprintf(ptsFile, "---------------\n");
+				av_interleaved_write_frame(m_outputFmtCtx, &m_packet);
+				//Free packet
+				av_free_packet(&m_packet);
+				av_init_packet(&m_packet);
+			}
+			avformat_close_input(&m_inputFmtCtx2);
+			break;
+		}
+		fclose(ptsFile);
+		//Write trailer of outputFile and close input and output
+		av_write_trailer(m_outputFmtCtx);
+		if (m_outputFilename != ""){
+			avio_close(m_outputFmtCtx->pb);
 		}
 		else{
 			fclose(file);

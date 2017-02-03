@@ -5,8 +5,8 @@
 #include "Win32Project.h"
 #include <gdiplus.h>
 #pragma comment(lib,"gdiplus.lib")
-#include "FFmpegPlayer.h"
-#include "RtspRecorder.h"
+#include "Record.h"
+#include "Export.h"
 #include <windows.h>
 #include <psapi.h>
 #include <stdio.h> 
@@ -89,12 +89,14 @@ LRESULT CALLBACK	WndProcMain(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK	About(HWND, UINT, WPARAM, LPARAM);
 
 string				filenameInput{ NULL };
+string				filenameInput2{ NULL };
 string				filenameOutput{ NULL };
-
 char				*pathInput;
+char				*pathInput2;
 char				*pathOutput;
-//CFFmpegPlayer		*player;
-CRtspRecorder		*recorder;
+
+CRecord		*recorder;
+CExport		*exporter;
 bool				switchsound;
 
 int APIENTRY _tWinMain(_In_ HINSTANCE hInstance,
@@ -127,41 +129,55 @@ int APIENTRY _tWinMain(_In_ HINSTANCE hInstance,
 		MemLog* memLog = new MemLog("D:\\", processID);
 	}).detach();*/
 
+	filenameInput = "D:\\TestVideo\\test2.mkv";
+	filenameInput2 = "D:\\TestVideo\\test1.mkv";
+	/*filenameInput = "D:\\TestVideo\\test2.h264";
+	filenameInput2 = "D:\\TestVideo\\test1.h264";*/
 	//filenameInput = "rtsp://localhost:8554/test";
 	//filenameInput = "rtsp://admin:admin@192.168.11.231:554/RVi/1/1";
-	filenameInput = "rtsp://admin:admin@192.168.11.183:554/cam/realmonitor?channel=1&subtype=0";
+	//filenameInput = "rtsp://admin:admin@192.168.11.183:554/cam/realmonitor?channel=1&subtype=0";
 	//filenameInput = "rtsp://55555:55555@192.168.11.197:554/cam/realmonitor?channel=1&subtype=0";
 	//filenameInput = "rtsp://admin:1q2w3e4r5t6y@192.168.11.108:554/Streaming/Channels/101?transportmode=unicast&profile=Profile_1";
 	//filenameInput = "D:\\TestVideo\\big_buck_bunny_480p_h264.mov";
 	//filenameInput = "D:\\TestVideo\\FromRtsp.mov";
 
 	//filenameInput = "rtsp://55555:55555@192.168.11.178:554/cam/realmonitor?channel=1&subtype=0";
-	//filenameInput = "rtsp ://55555:55555@192.168.11.185:554/cam/realmonitor?channel=1&subtype=0";
-	//filenameInput = "rtsp ://55555:55555@192.168.11.183:554/cam/realmonitor?channel=1&subtype=0";
-	//filenameInput = "rtsp ://55555:55555@192.168.11.197:554/cam/realmonitor?channel=1&subtype=0";
-	//filenameInput = "rtsp ://55555:55555@192.168.11.198:554/cam/realmonitor?channel=1&subtype=0";
-	//filenameInput = "rtsp ://55555:55555@192.168.11.187:554/cam/realmonitor?channel=1&subtype=0";
-	//filenameInput = "rtsp ://55555:55555@192.168.11.219:554/cam/realmonitor?channel=1&subtype=0";
-	//filenameInput = "rtsp ://55555:55555@192.168.11.199:554/cam/realmonitor?channel=1&subtype=0";
-	//filenameInput = "rtsp ://55555:55555@192.168.11.112:554/cam/realmonitor?channel=1&subtype=01";
-	//filenameInput = "rtsp ://55555:Five55555@192.168.11.118:554/cam/realmonitor?channel=1&subtype=01";
-	//filenameInput = "rtsp ://55555:Five55555@192.168.11.108:554/cam/realmonitor?channel=1&subtype=01";
-	//filenameInput = "rtsp ://192.168.11.68:554/snl/live/1/1/B0601YE=-dBL3hYFJiG5Y";
-	//filenameInput = "rtsp ://192.168.11.180:553/snl/live/1/1/B0601YE=-dBL3hYFJiG5Y";
-	filenameOutput = "D:\\test.mkv";
+	//filenameInput = "rtsp://55555:55555@192.168.11.185:554/cam/realmonitor?channel=1&subtype=0";
+	//filenameInput = "rtsp://55555:55555@192.168.11.183:554/cam/realmonitor?channel=1&subtype=0";
+	//filenameInput = "rtsp://55555:55555@192.168.11.197:554/cam/realmonitor?channel=1&subtype=0";
+	//filenameInput = "rtsp://55555:55555@192.168.11.198:554/cam/realmonitor?channel=1&subtype=0";
+	//filenameInput = "rtsp://55555:55555@192.168.11.187:554/cam/realmonitor?channel=1&subtype=0";
+	//filenameInput = "rtsp://55555:55555@192.168.11.219:554/cam/realmonitor?channel=1&subtype=0";
+	//filenameInput = "rtsp://55555:55555@192.168.11.199:554/cam/realmonitor?channel=1&subtype=0";
+	//filenameInput = "rtsp://55555:55555@192.168.11.112:554/cam/realmonitor?channel=1&subtype=01";
+	//filenameInput = "rtsp://55555:Five55555@192.168.11.118:554/cam/realmonitor?channel=1&subtype=01";
+	//filenameInput = "rtsp://55555:Five55555@192.168.11.108:554/cam/realmonitor?channel=1&subtype=01";
+	//filenameInput = "rtsp://192.168.11.68:554/snl/live/1/1/B0601YE=-dBL3hYFJiG5Y";
+	//filenameInput = "rtsp://192.168.11.180:553/snl/live/1/1/B0601YE=-dBL3hYFJiG5Y";
+	filenameOutput = "D:\\TestVideo\\testMerge.mkv";
+	/**/
 	pathInput = new char[filenameInput.size() + 1];
 	copy(filenameInput.begin(), filenameInput.end(), pathInput);
-	pathInput[filenameInput.size()] = '\0';
+	pathInput[filenameInput.size()] = '\0'; 
+	/**/
+	pathInput2 = new char[filenameInput2.size() + 1];
+	copy(filenameInput2.begin(), filenameInput2.end(), pathInput2);
+	pathInput2[filenameInput2.size()] = '\0';
+	/**/
 	pathOutput = new char[filenameOutput.size() + 1];
 	copy(filenameOutput.begin(), filenameOutput.end(), pathOutput);
 	pathOutput[filenameOutput.size()] = '\0';
-	/*player = new CFFmpegPlayer(path, NULL, NULL, NULL, 10000, hWnd);
-	player->Open();
+	/*
+	recorder = new CRecord(pathInput, 10000, pathOutput);
 	
-	player->Play();*/
-	recorder = new CRtspRecorder(pathInput,1000, pathOutput);
-	if(recorder->Open() != FALSE)
+	if (recorder->Open()){
 		recorder->StartRecord();
+	}
+	*/
+	exporter = new CExport();
+	if (!exporter->Merge(pathInput, pathInput2, pathOutput)){
+		return FALSE;
+	}
 	hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_WIN32PROJECT));
 
 	// Main message loop:
@@ -272,14 +288,11 @@ LRESULT CALLBACK WndProcMain(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 				switchsound = true;
 			else
 				switchsound = false;
-			//player->SwitchSound(switchsound);
 			break;
 		case ID_STOP:
-			//player->Stop();
 			recorder->StopRecord();
 			break;
 		case ID_PLAY:
-			//player->Play();
 			break;
 		default:
 			return DefWindowProc(hWnd, message, wParam, lParam);
