@@ -154,7 +154,7 @@ int APIENTRY _tWinMain(_In_ HINSTANCE hInstance,
 	//filenameInput = "rtsp://55555:Five55555@192.168.11.108:554/cam/realmonitor?channel=1&subtype=01";
 	//filenameInput = "rtsp://192.168.11.68:554/snl/live/1/1/B0601YE=-dBL3hYFJiG5Y";
 	//filenameInput = "rtsp://192.168.11.180:553/snl/live/1/1/B0601YE=-dBL3hYFJiG5Y";
-	filenameOutput = "D:\\TestVideo\\testMerge.mkv";
+	filenameOutput = "D:\\TestVideo\\testCut.mkv";
 	/**/
 	pathInput = new char[filenameInput.size() + 1];
 	copy(filenameInput.begin(), filenameInput.end(), pathInput);
@@ -175,9 +175,26 @@ int APIENTRY _tWinMain(_In_ HINSTANCE hInstance,
 	}
 	*/
 	exporter = new CExport();
+	if (!exporter->Cut(pathInput,pathOutput, 10000, 60000)){
+		return FALSE;
+	}
+	while (!exporter->FinishProcedure()){}
+	filenameInput = filenameOutput;
+	pathInput = new char[filenameInput.size() + 1];
+	copy(filenameInput.begin(), filenameInput.end(), pathInput);
+	pathInput[filenameInput.size()] = '\0';
+
+	filenameOutput = "D:\\TestVideo\\testMerge.mkv";
+	pathOutput = new char[filenameOutput.size() + 1];
+	copy(filenameOutput.begin(), filenameOutput.end(), pathOutput);
+	pathOutput[filenameOutput.size()] = '\0';
+
 	if (!exporter->Merge(pathInput, pathInput2, pathOutput)){
 		return FALSE;
 	}
+	while (!exporter->FinishProcedure()){}
+
+	exporter->~CExport();
 	hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_WIN32PROJECT));
 
 	// Main message loop:

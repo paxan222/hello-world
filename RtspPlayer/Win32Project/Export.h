@@ -24,7 +24,6 @@ extern "C" {
 #pragma comment (lib, "avcodec.lib")
 #pragma comment (lib, "avutil.lib")
 
-
 #define CONVERT_TIME_TO_MS 1000 //convertion from seconds to miliseconds
 
 class CExport{
@@ -42,12 +41,20 @@ class CExport{
 	AVStream					*m_inputVideoStream{ nullptr }, *m_inputAudioStream{ nullptr }, *m_outputVideoStream{ nullptr }, *m_outputAudioStream{ nullptr };
 	AVStream					*m_inputVideoStream2{ nullptr }, *m_inputAudioStream2{ nullptr };
 	bool						m_cancel{ false };
-
+	bool						m_finish{ false };
 	int							m_outputFileDuration{ 0 };	//Duration for progress callback
 	int64_t						m_currentPts{ 0 };			//Pts of writed packet for progress callback
+
 	//FEndOfOperationCallback		m_fEofCb{ nullptr };	//End of operation callback
 	//FProgressCallback			m_fProgCb{ nullptr };	//Progress callback
 	//FErrorCallback				m_fErrCb{ nullptr };	//Error callback
+
+	enum class Procedure :INT{
+		Unknown,
+		Cut,
+		Merge
+	};
+	Procedure m_procedure{ Procedure::Unknown };
 
 public:
 	//Constructor for fileoutput
@@ -56,24 +63,27 @@ public:
 	}
 
 	~CExport(){
-		avformat_close_input(&m_inputFmtCtx);
 		/*Constructor params*/
 		m_inputFilename = "";
+		m_inputFilename2 = "";
 		m_outputFilename = "";
+		m_startCutTime = NULL;
+		m_endCutTime = NULL;
 		/**/
-		avformat_free_context(m_inputFmtCtx);
-		avformat_free_context(m_outputFmtCtx);
+		if (m_outputFmtCtx)
+			avformat_free_context(m_outputFmtCtx);
 		m_videoStreamIndex = -1;
 		m_audioStreamIndex = -1;
-		av_free(m_outputFmt);
-		av_free(m_inputVideoStream);
-		av_free(m_inputAudioStream);
-		av_free(m_outputVideoStream);
-		av_free(m_outputAudioStream);
+		m_videoStreamIndex2 = -1;
+		m_audioStreamIndex2 = -1;
+		if (m_outputFmt)
+			av_free(m_outputFmt);
+		
 		m_cancel = false;
-
-		m_outputFileDuration = 0;
-		m_currentPts = 0;
+		m_finish = false;
+		m_outputFileDuration = NULL;
+		m_currentPts = NULL;
+		m_procedure = Procedure::Unknown;
 	}
 
 	BOOL Cut(PCHAR inputFilename, PCHAR outputFilename, //Cut procedure
@@ -81,19 +91,22 @@ public:
 		FProgressCallback fProgressCallback = nullptr,
 		FEndOfOperationCallback fEofCallback = nullptr,
 		FErrorCallback fErrorCallback = nullptr*/);
-	BOOL Merge(PCHAR inputFilename, PCHAR inputFilename2, PCHAR outputFilename //Merge procedure
-		/*,								FProgressCallback fProgressCallback = nullptr,
-										FEndOfOperationCallback fEofCallback = nullptr,
-										FErrorCallback fErrorCallback = nullptr*/);
-	BOOL CancelProcedure(); // stop record thread
+	BOOL Merge(PCHAR inputFilename, PCHAR inputFilename2, PCHAR outputFilename/*, // Merge procedure
+		FProgressCallback fProgressCallback = nullptr,
+		FEndOfOperationCallback fEofCallback = nullptr,
+		FErrorCallback fErrorCallback = nullptr*/);
+	BOOL CancelProcedure(); // Cancel procedure
+	BOOL FinishProcedure(); // Procedure was finished
 
 
 private:
 	BOOL Init(); //init input and output files
+	BOOL OpenFile(AVFormatContext **inputFmtCtx, std::string inputFileName);
 	void CreateStreams(); // Find and Create streams for output
 	BOOL CheckRequirements(); //Check boundary conditions
 	void RecalculateTimeStamps(AVPacket *packet, AVRational inputTimeBase, AVRational outputTimeBase, int offset = NULL); //Recalculate pts, dts and duration
 	void Cutting(); // cutting
-	void Merging();
+	void Merging();	// merging
 	int RecalculatedDuration(); // Get duration of outputFile
+	void CleanUp();
 };
