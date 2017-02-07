@@ -24,12 +24,13 @@ extern "C" {
 #pragma comment (lib, "avcodec.lib")
 #pragma comment (lib, "avutil.lib")
 
+//#include "RtspExport.h"
+
 #define CONVERT_TIME_TO_MS 1000 //convertion from seconds to miliseconds
 
 class CExport{
 
 	int							m_startCutTime{ 0 }, m_endCutTime{ 0 };
-	int							m_timeBaseRatio{ 0 };
 	std::string					m_inputFilename;
 	std::string					m_inputFilename2;
 	std::string					m_outputFilename;
@@ -41,7 +42,7 @@ class CExport{
 	AVStream					*m_inputVideoStream{ nullptr }, *m_inputAudioStream{ nullptr }, *m_outputVideoStream{ nullptr }, *m_outputAudioStream{ nullptr };
 	AVStream					*m_inputVideoStream2{ nullptr }, *m_inputAudioStream2{ nullptr };
 	bool						m_cancel{ false };
-	bool						m_finish{ false };
+
 	int							m_outputFileDuration{ 0 };	//Duration for progress callback
 	int64_t						m_currentPts{ 0 };			//Pts of writed packet for progress callback
 
@@ -54,13 +55,29 @@ class CExport{
 		Cut,
 		Merge
 	};
-	Procedure m_procedure{ Procedure::Unknown };
+	Procedure					m_procedure{ Procedure::Unknown }; // Procedure
+
+	/*std::string ErrorMessage(ErrorCode errCode){
+		switch (errCode)
+		{
+			case ErrorCode::EC_UNKNOWN:
+				return "Unknown error.";
+			case ErrorCode::EC_OPENINPUT:
+				return "Error occurred while trying to open an input file.";
+			case ErrorCode::EC_BOUNDARYERROR:
+				return "Start cutting time or end cutting time is out of range.";
+			case ErrorCode::EC_GUESSOUTPUTFORMAT:
+				return "Error occurred while trying guessing output format.";
+			case ErrorCode::EC_OPENOUTPUT:
+				return "Error occurred while trying to open an output file";
+				break;
+			default:
+				return "Unknown error.";
+		}
+	}*/
 
 public:
-	//Constructor for fileoutput
-	//If outputFilename incorrect, than we get FALSE at guessing an outputFormat
-	CExport(){
-	}
+	CExport(){}
 
 	~CExport(){
 		/*Constructor params*/
@@ -78,9 +95,8 @@ public:
 		m_audioStreamIndex2 = -1;
 		if (m_outputFmt)
 			av_free(m_outputFmt);
-		
+
 		m_cancel = false;
-		m_finish = false;
 		m_outputFileDuration = NULL;
 		m_currentPts = NULL;
 		m_procedure = Procedure::Unknown;
@@ -96,7 +112,6 @@ public:
 		FEndOfOperationCallback fEofCallback = nullptr,
 		FErrorCallback fErrorCallback = nullptr*/);
 	BOOL CancelProcedure(); // Cancel procedure
-	BOOL FinishProcedure(); // Procedure was finished
 
 
 private:

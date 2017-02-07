@@ -4,13 +4,13 @@
 BOOL CExport::OpenFile(AVFormatContext **inputFmtCtx, std::string inputFileName){
 	*inputFmtCtx = avformat_alloc_context();
 	if (avformat_open_input(&*inputFmtCtx, inputFileName.c_str(), nullptr, nullptr) != 0){
-		//if (m_fErrCb){
-		//	std::thread([this]{
-		//		ERROR_INFO ei;
-		//		ei.errorCode = ErrorCode::EC_OPENINPUT;
-		//		ei.message = ErrorMessage(ei.errorCode);
-		//		m_fErrCb(ei); }).detach();
-		//}
+		/*if (m_fErrCb){
+			std::thread([this]{
+				ERROR_INFO ei;
+				ei.errorCode = ErrorCode::EC_OPENINPUT;
+				ei.message = ErrorMessage(ei.errorCode);
+				m_fErrCb(ei); }).detach();
+		}*/
 		return FALSE;
 	}
 	//Find stream info
@@ -24,6 +24,16 @@ BOOL CExport::Init(){
 	if (!OpenFile(&m_inputFmtCtx, m_inputFilename))
 		return FALSE;
 
+	if (!CheckRequirements()){											// Check boundary conditions of start and end cutting time
+		/*if (m_fErrCb){
+			std::thread([this]{												// If check is not valid, asynch call error and exit.
+				ERROR_INFO ei;
+				ei.errorCode = ErrorCode::EC_BOUNDARYERROR;
+				ei.message = ErrorMessage(ei.errorCode);
+				m_fErrCb(ei); }).detach();
+		}*/
+		return FALSE;
+	}
 	/*-------------Open second file-----------------*/
 	//If inputFilename2 is empty, than we check that it is cut procedure, if not than return FALSE
 	if (m_procedure == Procedure::Merge){
@@ -34,14 +44,14 @@ BOOL CExport::Init(){
 	// Write to file
 	//Guess outputformat
 	if ((m_outputFmt = av_guess_format(nullptr, m_outputFilename.c_str(), nullptr)) == nullptr) {
-		//if (m_fErrCb){
-		//	std::thread([this]{
-		//		ERROR_INFO ei;
-		//		ei.errorCode = ErrorCode::EC_GUESSOUTPUTFORMAT;
-		//		ei.message = ErrorMessage(ei.errorCode);
-		//		m_fErrCb(ei);
-		//	}).detach();
-		//}
+		/*if (m_fErrCb){
+			std::thread([this]{
+				ERROR_INFO ei;
+				ei.errorCode = ErrorCode::EC_GUESSOUTPUTFORMAT;
+				ei.message = ErrorMessage(ei.errorCode);
+				m_fErrCb(ei);
+			}).detach();
+		}*/
 		return FALSE;
 	}
 	//Alloc OutputFormatContext
@@ -57,25 +67,15 @@ BOOL CExport::Init(){
 
 	CreateStreams();
 
-	if (!CheckRequirements()){											// Check boundary conditions of start and end cutting time
-		//if (m_fErrCb){
-		//	std::thread([this]{												// If check is not valid, asynch call error and exit.
-		//		ERROR_INFO ei;
-		//		ei.errorCode = ErrorCode::EC_BOUNDARYERROR;
-		//		ei.message = ErrorMessage(ei.errorCode);
-		//		m_fErrCb(ei); }).detach();
-		//}
-		return FALSE;
-	}
 	//Open outputfile, if return "<0" exit
 	if (avio_open(&m_outputFmtCtx->pb, m_outputFilename.c_str(), AVIO_FLAG_WRITE) < 0){
-		//if (m_fErrCb){
-		//	std::thread([this]{
-		//		ERROR_INFO ei;
-		//		ei.errorCode = ErrorCode::EC_OPENOUTPUT;
-		//		ei.message = ErrorMessage(ei.errorCode);
-		//		m_fErrCb(ei); }).detach();
-		//}
+		/*if (m_fErrCb){
+			std::thread([this]{
+				ERROR_INFO ei;
+				ei.errorCode = ErrorCode::EC_OPENOUTPUT;
+				ei.message = ErrorMessage(ei.errorCode);
+				m_fErrCb(ei); }).detach();
+		}*/
 		return FALSE;
 	}
 	//Write header of outputFile
@@ -139,12 +139,12 @@ BOOL CExport::Cut(PCHAR inputFilename, PCHAR outputFilename, int startCutTime, i
 	m_outputFilename = outputFilename;
 	m_startCutTime = startCutTime;
 	m_endCutTime = endCutTime;
-	m_finish = false;
-	//m_fProgCb = fProgressCallback;
-	//m_fEofCb = fEofCallback;
-	//m_fErrCb = fErrorCallback;
+	/*m_fProgCb = fProgressCallback;
+	m_fEofCb = fEofCallback;
+	m_fErrCb = fErrorCallback;*/
 	//Open input file, alloc formats, open output file
 	//All errors are captured by asynch error callback
+	//If there was some errors than we call CleanUp Method(destructor);
 	if (!Init()){
 		CleanUp();
 		return FALSE;
@@ -161,10 +161,9 @@ BOOL CExport::Merge(PCHAR inputFilename, PCHAR inputFilename2, PCHAR outputFilen
 	m_outputFilename = outputFilename;
 	m_startCutTime = NULL;
 	m_endCutTime = NULL;
-	m_finish = false;
-	//m_fProgCb = fProgressCallback;
-	//m_fEofCb = fEofCallback;
-	//m_fErrCb = fErrorCallback;
+	/*m_fProgCb = fProgressCallback;
+	m_fEofCb = fEofCallback;
+	m_fErrCb = fErrorCallback;*/
 	//Open input file, alloc formats, open output file
 	//All errors are captured by asynch error callback
 	if (!Init()){
@@ -211,8 +210,8 @@ void CExport::Cutting(){
 			m_outputFileDuration = RecalculatedDuration();
 			if (m_currentPts >= m_startCutTime && m_currentPts <= m_endCutTime){
 				av_interleaved_write_frame(m_outputFmtCtx, &m_packet);
-				//if (m_fProgCb)
-				//	std::thread([this]{m_fProgCb(m_outputFileDuration, m_currentPts - m_startCutTime); }).detach();
+				/*if (m_fProgCb)
+					std::thread([this]{m_fProgCb(m_outputFileDuration, m_currentPts - m_startCutTime); }).detach();*/
 			}
 			//Free packet
 			av_free_packet(&m_packet);
@@ -225,7 +224,6 @@ void CExport::Cutting(){
 		av_write_trailer(m_outputFmtCtx);
 		avio_close(m_outputFmtCtx->pb);
 		CleanUp();
-		m_finish = true;
 		/*if (m_fEofCb)
 			std::thread([this]{m_fEofCb(); }).detach();*/
 	}).detach();
@@ -233,9 +231,11 @@ void CExport::Cutting(){
 
 void CExport::Merging(){
 	std::thread([this]{
-		int64_t lastPts = 0;
+		int64_t lastPts = 0; // last pts for first input file
 		while (!m_cancel){
-			m_outputFileDuration = m_inputFmtCtx->duration + m_inputFmtCtx2->duration;
+			m_outputFileDuration = m_inputFmtCtx->duration + m_inputFmtCtx2->duration; // duration of result output file
+			av_init_packet(&m_packet);
+			//read First
 			while (!av_read_frame(m_inputFmtCtx, &m_packet)){
 				//Init packet
 				//Recalculate pts, dts and duration
@@ -244,7 +244,6 @@ void CExport::Merging(){
 					RecalculateTimeStamps(&m_packet, m_inputVideoStream->time_base, m_outputVideoStream->time_base);
 					m_packet.stream_index = m_outputVideoStream->index;
 					m_currentPts = m_packet.pts * CONVERT_TIME_TO_MS * av_q2d(m_outputVideoStream->time_base);
-
 					//Write the packet
 					lastPts = m_packet.pts;
 					av_interleaved_write_frame(m_outputFmtCtx, &m_packet);
@@ -258,7 +257,8 @@ void CExport::Merging(){
 					lastPts = m_packet.pts;
 					av_interleaved_write_frame(m_outputFmtCtx, &m_packet);
 				}
-				//std::thread([this]{m_fProgCb(m_outputFileDuration, m_currentPts); }).detach();
+				/*if (m_fProgCb)
+					std::thread([this]{m_fProgCb(m_outputFileDuration, m_currentPts); }).detach();*/
 				//Free packet
 				av_free_packet(&m_packet);
 				av_init_packet(&m_packet);
@@ -268,7 +268,6 @@ void CExport::Merging(){
 				//Recalculate pts, dts and duration		
 				if (m_packet.stream_index == m_videoStreamIndex2)
 				{
-					//RecalculateTimeStamps(&m_packet, m_inputVideoStream2->time_base, m_inputVideoStream->time_base);
 					RecalculateTimeStamps(&m_packet, m_inputVideoStream2->time_base, m_outputVideoStream->time_base, lastPts);
 					m_packet.stream_index = m_outputVideoStream->index;
 					m_currentPts = m_packet.pts * CONVERT_TIME_TO_MS * av_q2d(m_outputVideoStream->time_base);
@@ -278,35 +277,32 @@ void CExport::Merging(){
 
 				if (m_packet.stream_index == m_audioStreamIndex2)
 				{
-					//RecalculateTimeStamps(&m_packet, m_inputAudioStream2->time_base, m_inputAudioStream->time_base);
 					RecalculateTimeStamps(&m_packet, m_inputAudioStream2->time_base, m_outputAudioStream->time_base, lastPts);
 					m_packet.stream_index = m_outputAudioStream->index;
 					m_currentPts = m_packet.pts * CONVERT_TIME_TO_MS * av_q2d(m_outputAudioStream->time_base);
 					//Write the packet
 					av_interleaved_write_frame(m_outputFmtCtx, &m_packet);
 				}
-				//std::thread([this]{m_fProgCb(m_outputFileDuration, m_currentPts); }).detach();
+				/*if (m_fProgCb)
+					std::thread([this]{m_fProgCb(m_outputFileDuration, m_currentPts); }).detach();*/
 				//Free packet
 				av_free_packet(&m_packet);
 				av_init_packet(&m_packet);
 			}
+			av_free_packet(&m_packet);
 			break;
 		}
 		//Write trailer of outputFile and close input and output
 		av_write_trailer(m_outputFmtCtx);
 		avio_close(m_outputFmtCtx->pb);
 		CleanUp();
-		m_finish = true;
-		//std::thread([this]{m_fEofCb(); }).detach();
+		/*if (m_fEofCb)
+			std::thread([this]{m_fEofCb(); }).detach();*/
 	}).detach();
 }
 
 BOOL CExport::CancelProcedure(){
 	return m_cancel = true;
-}
-
-BOOL CExport::FinishProcedure(){
-	return m_finish;
 }
 
 void CExport::CleanUp(){

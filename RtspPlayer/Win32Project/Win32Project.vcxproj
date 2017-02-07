@@ -90,7 +90,10 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="BaseOperation.h" />
     <ClInclude Include="BasePlayer.h" />
+    <ClInclude Include="ConcatenateOperation.h" />
+    <ClInclude Include="CutOperation.h" />
     <ClInclude Include="DahuaDecoder.h" />
     <ClInclude Include="DahuaPlayer.h" />
     <ClInclude Include="DShowPlayer.h" />
@@ -116,7 +119,9 @@
     <ClInclude Include="XmPlayer.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="BaseOperation.cpp" />
     <ClCompile Include="BasePlayer.cpp" />
+    <ClCompile Include="CutOperation.cpp" />
     <ClCompile Include="DahuaDecoder.cpp" />
     <ClCompile Include="DahuaPlayer.cpp" />
     <ClCompile Include="dllmain.cpp" />
@@ -126,6 +131,7 @@
     <ClCompile Include="HikDecoder.cpp" />
     <ClCompile Include="HikPlayer.cpp" />
     <ClCompile Include="MemLog.cpp" />
+    <ClCompile Include="ConcatenateOperation.cpp" />
     <ClCompile Include="playback.cpp" />
     <ClCompile Include="Record.cpp" />
     <ClCompile Include="RtspDecoder.cpp" />
