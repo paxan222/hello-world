@@ -9,6 +9,8 @@
 #include <psapi.h>
 #include <stdio.h> 
 
+#include "Record.h"
+
 #include "BaseOperation.h"
 #include "ConcatenateOperation.h"
 #include "CutOperation.h"
@@ -71,13 +73,13 @@ int APIENTRY _tWinMain(_In_ HINSTANCE hInstance,
 
 
 
-	filenameInput = "D:\\TestVideo\\test2.mkv";
-	filenameInput2 = "D:\\TestVideo\\test1.mkv";
+	//filenameInput = "D:\\TestVideo\\test2.mkv";
+	//filenameInput2 = "D:\\TestVideo\\test1.mkv";
 	/*filenameInput = "D:\\TestVideo\\test2.h264";
 	filenameInput2 = "D:\\TestVideo\\test1.h264";*/
 	//filenameInput = "rtsp://localhost:8554/test";
 	//filenameInput = "rtsp://admin:admin@192.168.11.231:554/RVi/1/1";
-	//filenameInput = "rtsp://admin:admin@192.168.11.183:554/cam/realmonitor?channel=1&subtype=0";
+	filenameInput = "rtsp://admin:admin@192.168.11.185:554/cam/realmonitor?channel=1&subtype=0";
 	//filenameInput = "rtsp://55555:55555@192.168.11.197:554/cam/realmonitor?channel=1&subtype=0";
 	//filenameInput = "rtsp://admin:1q2w3e4r5t6y@192.168.11.108:554/Streaming/Channels/101?transportmode=unicast&profile=Profile_1";
 	//filenameInput = "D:\\TestVideo\\big_buck_bunny_480p_h264.mov";
@@ -109,13 +111,18 @@ int APIENTRY _tWinMain(_In_ HINSTANCE hInstance,
 	pathOutput = new char[filenameOutput.size() + 1];
 	copy(filenameOutput.begin(), filenameOutput.end(), pathOutput);
 	pathOutput[filenameOutput.size()] = '\0';
-	/*
-	recorder = new CRecord(pathInput, 10000, pathOutput);
+
+
+	//CRecord *recorder = new CRecord(pathInput, 10000);
+	//
+	//if (recorder->Open()){
+	//	recorder->StartRecord();
+	//	Sleep(1000);
+	//	recorder->RefreshHeader();
+	//	/*Sleep(5000);
+	//	recorder->StopRecord();*/
+	//}
 	
-	if (recorder->Open()){
-		recorder->StartRecord();
-	}
-	*/
 	
 	//cutTask = new CCutOperation("D:\\TestVideo\\test1.mkv", "D:\\TestVideo\\testCut1.mkv", 15000, 20000);
 	/*cutTask = new CCutOperation("D:\\TestVideo\\test2.mkv", "D:\\TestVideo\\testCut2.mkv", 20000, 35000);

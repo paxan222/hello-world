@@ -16,7 +16,7 @@ CCutOperation::CCutOperation(PCHAR inputFilename, PCHAR outputFilename,
 			auto audioIndex = m_inputAudioStream->index;
 			AVStream *outVideoStream = m_outputFmtCtx->streams[m_outputVideoStreamIndex];
 			AVStream *outAudioStream = m_outputFmtCtx->streams[m_outputAudioStreamIndex];
-			int currentPts = 0;
+			int64_t currentPts = 0;
 
 			av_init_packet(&packet);
 			while (!av_read_frame(m_inputFmtCtx, &packet) && !m_cancel){

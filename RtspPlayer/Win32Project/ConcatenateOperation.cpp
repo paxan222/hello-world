@@ -10,80 +10,84 @@ CConcatenateOperation::CConcatenateOperation(PCHAR firstInputFilename, PCHAR sec
 	FErrorCallback fErrorCallback = nullptr*/) :CBaseOperation()
 {
 	std::thread([=]{
-		Init(firstInputFilename, secondInputFilename, outputFilename);
-		AVPacket packet;
-		auto videoIndex = m_inputVideoStream->index;
-		auto audioIndex = m_inputAudioStream->index;
-		AVStream *outVideoStream = m_outputFmtCtx->streams[m_outputVideoStreamIndex];
-		AVStream *outAudioStream = m_outputFmtCtx->streams[m_outputAudioStreamIndex];
-		int64_t lastPts = 0; // last pts for first input file
-		auto outputFileDuration = m_inputFmtCtx->duration + m_secondInputFmtCtx->duration; // duration of result output file
-		
-		while (!m_cancel){
-			av_init_packet(&packet);
-			//read First
-			while (!av_read_frame(m_inputFmtCtx, &packet)){
-				//Init packet
-				//Recalculate pts, dts and duration
-				if (packet.stream_index == m_videoStreamIndex)
-				{
-					RecalculateTimeStamps(&packet, m_inputVideoStream->time_base, m_outputVideoStream->time_base);
-					packet.stream_index = m_outputVideoStream->index;
-					m_currentPts = packet.pts * CONVERT_TIME_TO_MS * av_q2d(m_outputVideoStream->time_base);
-					//Write the packet
-					lastPts = packet.pts;
-					av_interleaved_write_frame(m_outputFmtCtx, &packet);
-				}
-				if (packet.stream_index == m_audioStreamIndex)
-				{
-					RecalculateTimeStamps(&packet, m_inputAudioStream->time_base, m_outputAudioStream->time_base);
-					packet.stream_index = m_outputAudioStream->index;
-					m_currentPts = packet.pts * CONVERT_TIME_TO_MS * av_q2d(m_outputAudioStream->time_base);
-					//Write the packet
-					lastPts = packet.pts;
-					av_interleaved_write_frame(m_outputFmtCtx, &packet);
-				}
-				/*if (m_fProgCb)
-				std::thread([this]{m_fProgCb(m_outputFileDuration, m_currentPts); }).detach();*/
-				//Free packet
-				av_free_packet(&packet);
-				av_init_packet(&packet);
-			}
-			while (!av_read_frame(m_inputFmtCtx2, &packet)){
-				//Init packet
-				//Recalculate pts, dts and duration		
-				if (packet.stream_index == m_videoStreamIndex2)
-				{
-					RecalculateTimeStamps(&packet, m_inputVideoStream2->time_base, m_outputVideoStream->time_base, lastPts);
-					packet.stream_index = m_outputVideoStream->index;
-					m_currentPts = packet.pts * CONVERT_TIME_TO_MS * av_q2d(m_outputVideoStream->time_base);
-					//Write the packet
-					av_interleaved_write_frame(m_outputFmtCtx, &packet);
-				}
+		if (Init(firstInputFilename, secondInputFilename, outputFilename)){
+			AVPacket packet;
+			auto videoIndex = m_inputVideoStream->index;
+			auto audioIndex = m_inputAudioStream->index;
+			auto videoIndex2 = m_secondInputVideoStream->index;
+			auto audioIndex2 = m_secondInputAudioStream->index;
+			AVStream *outVideoStream = m_outputFmtCtx->streams[m_outputVideoStreamIndex];
+			AVStream *outAudioStream = m_outputFmtCtx->streams[m_outputAudioStreamIndex];
+			int64_t lastPts = 0; // last pts for first input file
+			int64_t currentPts = 0;
+			auto outputFileDuration = m_inputFmtCtx->duration + m_secondInputFmtCtx->duration; // duration of result output file
 
-				if (packet.stream_index == m_audioStreamIndex2)
-				{
-					RecalculateTimeStamps(&packet, m_inputAudioStream2->time_base, m_outputAudioStream->time_base, lastPts);
-					packet.stream_index = m_outputAudioStream->index;
-					m_currentPts = packet.pts * CONVERT_TIME_TO_MS * av_q2d(m_outputAudioStream->time_base);
-					//Write the packet
-					av_interleaved_write_frame(m_outputFmtCtx, &packet);
-				}
-				/*if (m_fProgCb)
-				std::thread([this]{m_fProgCb(m_outputFileDuration, m_currentPts); }).detach();*/
-				//Free packet
-				av_free_packet(&packet);
+			while (!m_cancel){
 				av_init_packet(&packet);
+				//read First
+				while (!av_read_frame(m_inputFmtCtx, &packet)){
+					//Init packet
+					//Recalculate pts, dts and duration
+					if (packet.stream_index == videoIndex)
+					{
+						RecalculateTimeStamps(&packet, m_inputVideoStream->time_base, outVideoStream->time_base);
+						packet.stream_index = outVideoStream->index;
+						currentPts = packet.pts * CONVERT_TIME_TO_MS * av_q2d(outVideoStream->time_base);
+						//Write the packet
+						lastPts = packet.pts;
+						av_interleaved_write_frame(m_outputFmtCtx, &packet);
+					}
+					if (packet.stream_index == audioIndex)
+					{
+						RecalculateTimeStamps(&packet, m_inputAudioStream->time_base, outAudioStream->time_base);
+						packet.stream_index = outAudioStream->index;
+						currentPts = packet.pts * CONVERT_TIME_TO_MS * av_q2d(outAudioStream->time_base);
+						//Write the packet
+						lastPts = packet.pts;
+						av_interleaved_write_frame(m_outputFmtCtx, &packet);
+					}
+					/*if (m_fProgCb)
+					std::thread([this]{m_fProgCb(outputFileDuration, currentPts); }).detach();*/
+					//Free packet
+					av_free_packet(&packet);
+					av_init_packet(&packet);
+				}
+				while (!av_read_frame(m_secondInputFmtCtx, &packet)){
+					//Init packet
+					//Recalculate pts, dts and duration		
+					if (packet.stream_index == videoIndex2)
+					{
+						RecalculateTimeStamps(&packet, m_secondInputVideoStream->time_base, outVideoStream->time_base, lastPts);
+						packet.stream_index = outVideoStream->index;
+						currentPts = packet.pts * CONVERT_TIME_TO_MS * av_q2d(outVideoStream->time_base);
+						//Write the packet
+						av_interleaved_write_frame(m_outputFmtCtx, &packet);
+					}
+
+					if (packet.stream_index == audioIndex2)
+					{
+						RecalculateTimeStamps(&packet, m_secondInputAudioStream->time_base, outAudioStream->time_base, lastPts);
+						packet.stream_index = outAudioStream->index;
+						currentPts = packet.pts * CONVERT_TIME_TO_MS * av_q2d(outAudioStream->time_base);
+						//Write the packet
+						av_interleaved_write_frame(m_outputFmtCtx, &packet);
+					}
+					/*if (m_fProgCb)
+					std::thread([this]{m_fProgCb(outputFileDuration, currentPts); }).detach();*/
+					//Free packet
+					av_free_packet(&packet);
+					av_init_packet(&packet);
+				}
+				av_free_packet(&packet);
+				break;
 			}
-			av_free_packet(&packet);
-			break;
+			//Write trailer of outputFile and close input and output
+			av_write_trailer(m_outputFmtCtx);
+			avio_close(m_outputFmtCtx->pb);
+			delete this;
+			/*if (m_fEofCb)
+				std::thread([this]{m_fEofCb(); }).detach();*/
 		}
-		//Write trailer of outputFile and close input and output
-		av_write_trailer(m_outputFmtCtx);
-		avio_close(m_outputFmtCtx->pb);
-		delete this;
-		/*if (m_fEofCb)
-		std::thread([this]{m_fEofCb(); }).detach();*/
 	}).detach();
 }
 
