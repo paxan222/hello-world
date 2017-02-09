@@ -42,7 +42,6 @@ BOOL CFFmpegPlayer::Open()
 		m_options = nullptr;
 	}
 	m_fmtCtx = avformat_alloc_context();
-	Init();
 	if (Init() == FALSE){
 		return FALSE;
 	}
@@ -64,8 +63,8 @@ int CFFmpegPlayer::Interrupt_cb(void *ctx){
 BOOL CFFmpegPlayer::Init()
 {
 	Gdiplus::GdiplusStartup(&m_gdiplusToken, &gdiplusStartupInput, NULL);
-	m_fmtCtx->interrupt_callback.callback = Interrupt_cb;
-	m_fmtCtx->interrupt_callback.opaque = 0;
+	/*m_fmtCtx->interrupt_callback.callback = Interrupt_cb;
+	m_fmtCtx->interrupt_callback.opaque = 0;*/
 	timeoutPrev = GetTickCount();
 	timeout = m_timeout;
 	if (avformat_open_input(&m_fmtCtx, m_fileName.c_str(), nullptr, &m_options))

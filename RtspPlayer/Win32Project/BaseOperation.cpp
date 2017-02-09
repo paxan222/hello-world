@@ -13,7 +13,9 @@ CBaseOperation::~CBaseOperation()
 	avformat_close_input(&m_inputFmtCtx);
 }
 
-//Return mediaFileDuration
+/*
+* Return media file duration or return NULL if couldn't open file
+*/
 int CBaseOperation::GetFileDuration(PCHAR filename){
 	av_register_all();
 	AVFormatContext *fmtCtx = avformat_alloc_context();
@@ -33,37 +35,27 @@ BOOL CBaseOperation::CancelTask(){
 /*-----------------Protected-------------------------------------*/
 
 //Open input file
-BOOL CBaseOperation::OpenInputFile(AVFormatContext **fmtCtx, PCHAR filename){
-	*fmtCtx = avformat_alloc_context();
-	if (avformat_open_input(&*fmtCtx, filename, nullptr, nullptr) != 0){
-		//if (m_fErrCb){
-		//	std::thread([this]{
-		//		ERROR_INFO ei;
-		//		ei.errorCode = ErrorCode::EC_OPENINPUT;
-		//		ei.message = ErrorMessage(ei.errorCode);
-		//		m_fErrCb(ei); }).detach();
-		//}
+BOOL CBaseOperation::OpenInputFile(AVFormatContext *&fmtCtx, PCHAR filename){
+	fmtCtx = avformat_alloc_context();
+	if (avformat_open_input(&fmtCtx, filename, nullptr, nullptr) != 0){
+		//m_errorCode = ErrorCode::OpenInputFileError;
 		return FALSE;
 	}
 	//Find stream info
-	avformat_find_stream_info(*fmtCtx, nullptr);
+	avformat_find_stream_info(fmtCtx, nullptr);
 	return TRUE;
 }
 
-//Open output file
-BOOL CBaseOperation::OpenOutputFile(PCHAR outputFilename){
-	// Write to file
-	//Guess outputformat
+//Guess output format
+BOOL CBaseOperation::GuessOutputFormat(AVFormatContext *outputFmtCtx, PCHAR outputFilename){
+	/*
+	*Return the output format in the list of registered output formats
+	*which best matches the provided parameters, or return NULL if
+	* there is no match.
+	*/
 	AVOutputFormat *outputFmt{ nullptr };
 	if ((outputFmt = av_guess_format(nullptr, outputFilename, nullptr)) == nullptr) {
-		//if (m_fErrCb){
-		//	std::thread([this]{
-		//		ERROR_INFO ei;
-		//		ei.errorCode = ErrorCode::EC_GUESSOUTPUTFORMAT;
-		//		ei.message = ErrorMessage(ei.errorCode);
-		//		m_fErrCb(ei);
-		//	}).detach();
-		//}
+		//m_errorCode = ErrorCode::OutputFormatNotMatchFormat;
 		return FALSE;
 	}
 	//Alloc OutputFormatContext
@@ -76,18 +68,19 @@ BOOL CBaseOperation::OpenOutputFile(PCHAR outputFilename){
 	{
 		m_outputFmtCtx->flags |= CODEC_FLAG_GLOBAL_HEADER;
 	}
-	//Create output streams
-	CreateOutputStream();
+	return TRUE;
+}
+
+BOOL CBaseOperation::OpenOutputFile(PCHAR outputFilename)
+{
+	if (!GuessOutputFormat(m_outputFmtCtx, outputFilename))
+		return FALSE;
+
+	CreateOutputStreams(m_outputFmtCtx);
 
 	//Open outputfile, if return "<0" exit
 	if (avio_open(&m_outputFmtCtx->pb, outputFilename, AVIO_FLAG_WRITE) < 0){
-		//if (m_fErrCb){
-		//	std::thread([this]{
-		//		ERROR_INFO ei;
-		//		ei.errorCode = ErrorCode::EC_OPENOUTPUT;
-		//		ei.message = ErrorMessage(ei.errorCode);
-		//		m_fErrCb(ei); }).detach();
-		//}
+		//m_errorCode = ErrorCode::OpenOutputFileError;
 		return FALSE;
 	}
 	//Write header of output file
@@ -96,19 +89,12 @@ BOOL CBaseOperation::OpenOutputFile(PCHAR outputFilename){
 	return TRUE;
 }
 
-//Create output streams
-void CBaseOperation::CreateOutputStream(){
-	auto codec = avcodec_find_encoder(m_outputFmtCtx->oformat->video_codec);
-	auto outVideoStream = avformat_new_stream(m_outputFmtCtx, codec);
-	avcodec_copy_context(outVideoStream->codec, m_inputVideoStream->codec);
-	m_outputVideoStreamIndex = outVideoStream->index;
-	//Create Audio stream if we have input audio stream
-	if (m_inputAudioStream != nullptr){
-		codec = avcodec_find_encoder(m_outputFmtCtx->oformat->audio_codec);
-		auto outAudioStream = avformat_new_stream(m_outputFmtCtx, codec);
-		avcodec_copy_context(outAudioStream->codec, m_inputAudioStream->codec);
-		m_outputAudioStreamIndex = outAudioStream->index;
-	}
+//CreateOutputStream
+int CBaseOperation::CreateStream(AVCodecID codecId, AVStream *inputStream){
+	auto tmpCodec = avcodec_find_encoder(codecId);
+	auto outputStream = avformat_new_stream(m_outputFmtCtx, tmpCodec);
+	avcodec_copy_context(outputStream->codec, inputStream->codec);
+	return outputStream->index;
 }
 
 //Recalculate timestamps of the packet using timebase of input and output streams and offset if it necessary

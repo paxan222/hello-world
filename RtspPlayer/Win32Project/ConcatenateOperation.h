@@ -12,8 +12,8 @@ class CConcatenateOperation : public CBaseOperation
 	AVStream *m_secondInputAudioStream{ nullptr };
 public:
 	//Constructor
-	CConcatenateOperation(PCHAR firstInputFilename, PCHAR secondInputFilenam, PCHAR outputFilename
-		/*, FProgressCallback fProgressCallback = nullptr,
+	CConcatenateOperation(PCHAR firstInputFilename, PCHAR secondInputFilenam, PCHAR outputFilename/*,
+		FProgressCallback fProgressCallback = nullptr,
 		FEndOfOperationCallback fEofCallback = nullptr,
 		FErrorCallback fErrorCallback = nullptr*/);
 	//Destructor
@@ -22,7 +22,6 @@ public:
 private:
 	//Open input files -> Fill input streams => Open output file
 	BOOL Init(PCHAR firstInputFilename, PCHAR secondInputFilenam, PCHAR outputFilename);
-
-	void CreateOutputStream() override;
+	//Create output streams
+	void CreateOutputStreams(AVFormatContext *outputFmtCtx) override;
 };
-

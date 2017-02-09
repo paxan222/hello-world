@@ -4,10 +4,8 @@
 /*-----------------Public----------------------------------------*/
 
 //Constructor
-CConcatenateOperation::CConcatenateOperation(PCHAR firstInputFilename, PCHAR secondInputFilename, PCHAR outputFilename
-	/*, FProgressCallback fProgressCallback = nullptr,
-	FEndOfOperationCallback fEofCallback = nullptr,
-	FErrorCallback fErrorCallback = nullptr*/) :CBaseOperation()
+CConcatenateOperation::CConcatenateOperation(PCHAR firstInputFilename, PCHAR secondInputFilename, PCHAR outputFilename/*,
+	FProgressCallback fProgressCallback, FEndOfOperationCallback fEofCallback, FErrorCallback fErrorCallback*/) :CBaseOperation()
 {
 	std::thread([=]{
 		if (Init(firstInputFilename, secondInputFilename, outputFilename)){
@@ -26,10 +24,9 @@ CConcatenateOperation::CConcatenateOperation(PCHAR firstInputFilename, PCHAR sec
 				av_init_packet(&packet);
 				//read First
 				while (!av_read_frame(m_inputFmtCtx, &packet)){
-					//Init packet
-					//Recalculate pts, dts and duration
 					if (packet.stream_index == videoIndex)
 					{
+						//Recalculate pts, dts and duration
 						RecalculateTimeStamps(&packet, m_inputVideoStream->time_base, outVideoStream->time_base);
 						packet.stream_index = outVideoStream->index;
 						currentPts = packet.pts * CONVERT_TIME_TO_MS * av_q2d(outVideoStream->time_base);
@@ -46,14 +43,13 @@ CConcatenateOperation::CConcatenateOperation(PCHAR firstInputFilename, PCHAR sec
 						lastPts = packet.pts;
 						av_interleaved_write_frame(m_outputFmtCtx, &packet);
 					}
-					/*if (m_fProgCb)
-					std::thread([this]{m_fProgCb(outputFileDuration, currentPts); }).detach();*/
+					//if (fProgressCallback)
+					//	std::thread([=]{fProgressCallback(outputFileDuration, currentPts); }).detach();
 					//Free packet
 					av_free_packet(&packet);
 					av_init_packet(&packet);
 				}
 				while (!av_read_frame(m_secondInputFmtCtx, &packet)){
-					//Init packet
 					//Recalculate pts, dts and duration		
 					if (packet.stream_index == videoIndex2)
 					{
@@ -72,8 +68,8 @@ CConcatenateOperation::CConcatenateOperation(PCHAR firstInputFilename, PCHAR sec
 						//Write the packet
 						av_interleaved_write_frame(m_outputFmtCtx, &packet);
 					}
-					/*if (m_fProgCb)
-					std::thread([this]{m_fProgCb(outputFileDuration, currentPts); }).detach();*/
+					//if (fProgressCallback)
+					//	std::thread([=]{fProgressCallback(outputFileDuration, currentPts); }).detach();
 					//Free packet
 					av_free_packet(&packet);
 					av_init_packet(&packet);
@@ -84,10 +80,15 @@ CConcatenateOperation::CConcatenateOperation(PCHAR firstInputFilename, PCHAR sec
 			//Write trailer of outputFile and close input and output
 			av_write_trailer(m_outputFmtCtx);
 			avio_close(m_outputFmtCtx->pb);
-			delete this;
-			/*if (m_fEofCb)
-				std::thread([this]{m_fEofCb(); }).detach();*/
 		}
+		//If Init return FALSE
+		else{
+			//if (fErrorCallback != nullptr)
+			//	std::thread([=]{ fErrorCallback(m_errorCode); }).detach();
+		}
+		delete this;
+		//if (fEofCallback)
+		//	std::thread([=]{fEofCallback(); }).detach();
 	}).detach();
 }
 
@@ -101,32 +102,21 @@ CConcatenateOperation::~CConcatenateOperation()
 
 //Open input files -> Fill input streams => Open output file
 BOOL CConcatenateOperation::Init(PCHAR firstInputFilename, PCHAR secondInputFilename, PCHAR outputFilename){
-	if (firstInputFilename == "" || secondInputFilename =="" || outputFilename == "")
-		//if (m_fErrCb){
-		//	std::thread([this]{
-		//		ERROR_INFO ei;
-		//		ei.errorCode = ErrorCode::EC_OPENINPUT;
-		//		ei.message = ErrorMessage(ei.errorCode);
-		//		m_fErrCb(ei); }).detach();
-		//}
+	if (firstInputFilename == "" || secondInputFilename == "" || outputFilename == ""){
+		//m_errorCode = ErrorCode::EmptyFilename;
 		return FALSE;
+	}
 	av_register_all();
 
 	/*First input file*/
-	if (!OpenInputFile(&m_inputFmtCtx, firstInputFilename))
+	if (!OpenInputFile(m_inputFmtCtx, firstInputFilename))
 		return FALSE;
 	// Find input video stream, if there is no stream than callback and exit
 	auto streamIndex = av_find_best_stream(m_inputFmtCtx, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
 	if (streamIndex >= 0)
 		m_inputVideoStream = m_inputFmtCtx->streams[streamIndex];
 	else{
-		//if (m_fErrCb){
-		//	std::thread([this]{
-		//		ERROR_INFO ei;
-		//		ei.errorCode = ErrorCode::EC_OPENINPUT;
-		//		ei.message = ErrorMessage(ei.errorCode);
-		//		m_fErrCb(ei); }).detach();
-		//}
+		//m_errorCode = ErrorCode::VideoStreamNotExist;
 		return FALSE;
 	}
 	// Find input audio stream, if threre is no stream than work only with video
@@ -135,20 +125,14 @@ BOOL CConcatenateOperation::Init(PCHAR firstInputFilename, PCHAR secondInputFile
 		m_inputAudioStream = m_inputFmtCtx->streams[streamIndex];
 
 	/*Second input file*/
-	if (!OpenInputFile(&m_secondInputFmtCtx, secondInputFilename))
+	if (!OpenInputFile(m_secondInputFmtCtx, secondInputFilename))
 		return FALSE;
 	// Find input video stream, if there is no stream than callback and exit
 	streamIndex = av_find_best_stream(m_secondInputFmtCtx, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
 	if (streamIndex >= 0)
 		m_secondInputVideoStream = m_secondInputFmtCtx->streams[streamIndex];
 	else{
-		//if (m_fErrCb){
-		//	std::thread([this]{
-		//		ERROR_INFO ei;
-		//		ei.errorCode = ErrorCode::EC_OPENINPUT;
-		//		ei.message = ErrorMessage(ei.errorCode);
-		//		m_fErrCb(ei); }).detach();
-		//}
+		//m_errorCode = ErrorCode::VideoStreamNotExist;
 		return FALSE;
 	}
 	// Find input audio stream, if threre is no stream than work only with video
@@ -158,30 +142,24 @@ BOOL CConcatenateOperation::Init(PCHAR firstInputFilename, PCHAR secondInputFile
 
 	// If we couldnt open output file - exit
 	if (!OpenOutputFile(outputFilename)){
+		//Error code is setting up in OpenOutputFile function
 		return FALSE;
 	}
 
 	return TRUE;
 }
 
-void CConcatenateOperation::CreateOutputStream(){
-	auto codec = avcodec_find_encoder(m_outputFmtCtx->oformat->video_codec);
-	auto outVideoStream = avformat_new_stream(m_outputFmtCtx, codec);
-	avcodec_copy_context(outVideoStream->codec, m_inputVideoStream->codec);
-	m_outputVideoStreamIndex = outVideoStream->index;
+//CreateOutputStreams
+void CConcatenateOperation::CreateOutputStreams(AVFormatContext *outputFmtCtx){
+	m_outputVideoStreamIndex = CreateStream(outputFmtCtx->oformat->video_codec, m_inputVideoStream);
 	//Create Audio stream if we have input audio stream
 	if (m_inputAudioStream != nullptr){
-		codec = avcodec_find_encoder(m_outputFmtCtx->oformat->audio_codec);
-		auto outAudioStream = avformat_new_stream(m_outputFmtCtx, codec);
-		avcodec_copy_context(outAudioStream->codec, m_inputAudioStream->codec);
-		m_outputAudioStreamIndex = outAudioStream->index;
+		m_outputAudioStreamIndex=CreateStream(outputFmtCtx->oformat->audio_codec, m_inputAudioStream);
 	}
-	else{
+	else
+	{
 		if (m_secondInputAudioStream != nullptr){
-			codec = avcodec_find_encoder(m_outputFmtCtx->oformat->audio_codec);
-			auto outAudioStream = avformat_new_stream(m_outputFmtCtx, codec);
-			avcodec_copy_context(outAudioStream->codec, m_secondInputAudioStream->codec);
-			m_outputAudioStreamIndex = outAudioStream->index;
+			m_outputAudioStreamIndex=CreateStream(outputFmtCtx->oformat->audio_codec, m_secondInputAudioStream);
 		}
 	}
 }

@@ -154,3 +154,5 @@ $RECYCLE.BIN/
 
 # Mac desktop service store files
 .DS_Store
+/RtspPlayer/Win32Project/*.ppm
+/RtspPlayer/Win32Project/boost/tr1/tr1/sun/*.SUNWCCh

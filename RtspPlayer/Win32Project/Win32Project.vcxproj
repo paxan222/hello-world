@@ -92,16 +92,19 @@
   <ItemGroup>
     <ClInclude Include="BaseOperation.h" />
     <ClInclude Include="BasePlayer.h" />
+    <ClInclude Include="BaseRecorder.h" />
+    <ClInclude Include="CallbackRecorder.h" />
     <ClInclude Include="ConcatenateOperation.h" />
     <ClInclude Include="CutOperation.h" />
     <ClInclude Include="DahuaDecoder.h" />
     <ClInclude Include="DahuaPlayer.h" />
     <ClInclude Include="DShowPlayer.h" />
-    <ClInclude Include="easylogging++.h" />
     <ClInclude Include="Export.h" />
     <ClInclude Include="FFmpegPlayer.h" />
+    <ClInclude Include="FileRecorder.h" />
     <ClInclude Include="HikDecoder.h" />
     <ClInclude Include="HikPlayer.h" />
+    <ClInclude Include="Logger.h" />
     <ClInclude Include="playback.h" />
     <ClInclude Include="Queue.h" />
     <ClInclude Include="Record.h" />
@@ -121,6 +124,8 @@
   <ItemGroup>
     <ClCompile Include="BaseOperation.cpp" />
     <ClCompile Include="BasePlayer.cpp" />
+    <ClCompile Include="BaseRecorder.cpp" />
+    <ClCompile Include="CallbackRecorder.cpp" />
     <ClCompile Include="CutOperation.cpp" />
     <ClCompile Include="DahuaDecoder.cpp" />
     <ClCompile Include="DahuaPlayer.cpp" />
@@ -128,6 +133,7 @@
     <ClCompile Include="DShowPlayer.cpp" />
     <ClCompile Include="Export.cpp" />
     <ClCompile Include="FFmpegPlayer.cpp" />
+    <ClCompile Include="FileRecorder.cpp" />
     <ClCompile Include="HikDecoder.cpp" />
     <ClCompile Include="HikPlayer.cpp" />
     <ClCompile Include="MemLog.cpp" />

@@ -4,7 +4,6 @@
 #include <tchar.h>
 #include <stdio.h>
 
-
 #include <memory>
 #include <condition_variable>
 #include <thread>
@@ -24,6 +23,8 @@ extern "C" {
 #pragma comment (lib, "avcodec.lib")
 #pragma comment (lib, "avutil.lib")
 
+//#include "RtspExport.h"
+
 #define CONVERT_TIME_TO_MS 1000 //convertion from seconds to miliseconds
 
 class CBaseOperation
@@ -32,9 +33,9 @@ public:
 	//Constructor
 	CBaseOperation();
 	//Destructor
-	~CBaseOperation();
+	virtual ~CBaseOperation();
 	//Return mediaFileDuration
-	int GetFileDuration(PCHAR filename);
+	static int GetFileDuration(PCHAR filename);
 	//Cancel task
 	BOOL CancelTask();
 protected:
@@ -56,13 +57,22 @@ protected:
 	/*----------Cancel------------------------------------------------*/
 	//Cancel operation flag
 	bool m_cancel{ false };
+	/*----------Error-Code--------------------------------------------*/
+	//Error code for Error callback
+	//ErrorCode m_errorCode{ ErrorCode::UnknownError };
+
 
 	//Open input file
-	BOOL OpenInputFile(AVFormatContext **fmtCtx, PCHAR filename);
+	BOOL OpenInputFile(AVFormatContext *&fmtCtx, PCHAR filename);
+	//Guess output format
+	BOOL GuessOutputFormat(AVFormatContext *outputFmtCtx, PCHAR outputFilename);
 	//Open output file
-	virtual BOOL OpenOutputFile(PCHAR outputFilename);
+	BOOL OpenOutputFile(PCHAR outputFilename);
+	//Create output stream from input stream
+	//return stream index
+	int CreateStream(AVCodecID codecId, AVStream *inputStream);
 	//Create output streams
-	virtual void CreateOutputStream();
+	virtual void CreateOutputStreams(AVFormatContext *outputFmtCtx) abstract;
 	//Recalculate timestamps of the packet using timebase of input and output streams and offset if it necessary
 	void RecalculateTimeStamps(AVPacket *packet, AVRational inputTimeBase, AVRational outputTimeBase, int offset = NULL);
 };

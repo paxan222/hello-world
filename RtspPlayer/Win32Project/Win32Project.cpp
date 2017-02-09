@@ -11,13 +11,6 @@
 
 #include "Record.h"
 
-#include "BaseOperation.h"
-#include "ConcatenateOperation.h"
-#include "CutOperation.h"
-
-#include "MemLog.cpp"
-
-
 #include <direct.h>
 #define GetCurrentDir _getcwd
 //#include "vld.h"
@@ -40,8 +33,8 @@ string				filenameOutput{ NULL };
 char				*pathInput;
 char				*pathInput2;
 char				*pathOutput;
-CBaseOperation *cutTask;
-bool				switchsound;
+CFFmpegPlayer *player;
+CBaseOperation *operationTask;
 
 int APIENTRY _tWinMain(_In_ HINSTANCE hInstance,
 	_In_opt_ HINSTANCE hPrevInstance,
@@ -66,68 +59,24 @@ int APIENTRY _tWinMain(_In_ HINSTANCE hInstance,
 	{
 		return FALSE;
 	}
-
+	/*-------------------------------------------------------------------------------------------------------*/	
 	/*std::thread([=] {
 		MemLog* memLog = new MemLog("D:\\", GetCurrentProcessId());
-	}).detach();*/
+		}).detach();*/
+
+	RecordStreamArray();
+
+	//RecordStream("rtsp://55555:55555@192.168.11.178:554/cam/realmonitor?channel=1&subtype=0", "Rebuild.mkv", 0);
+
+	/*std::string filename = "rtsp://192.168.11.6:554/eba945dd-13be-4b68-b0ae-4374d1b817bd";
 
 
-
-	//filenameInput = "D:\\TestVideo\\test2.mkv";
-	//filenameInput2 = "D:\\TestVideo\\test1.mkv";
-	/*filenameInput = "D:\\TestVideo\\test2.h264";
-	filenameInput2 = "D:\\TestVideo\\test1.h264";*/
-	//filenameInput = "rtsp://localhost:8554/test";
-	//filenameInput = "rtsp://admin:admin@192.168.11.231:554/RVi/1/1";
-	filenameInput = "rtsp://admin:admin@192.168.11.185:554/cam/realmonitor?channel=1&subtype=0";
-	//filenameInput = "rtsp://55555:55555@192.168.11.197:554/cam/realmonitor?channel=1&subtype=0";
-	//filenameInput = "rtsp://admin:1q2w3e4r5t6y@192.168.11.108:554/Streaming/Channels/101?transportmode=unicast&profile=Profile_1";
-	//filenameInput = "D:\\TestVideo\\big_buck_bunny_480p_h264.mov";
-	//filenameInput = "D:\\TestVideo\\FromRtsp.mov";
-
-	//filenameInput = "rtsp://55555:55555@192.168.11.178:554/cam/realmonitor?channel=1&subtype=0";
-	//filenameInput = "rtsp://55555:55555@192.168.11.185:554/cam/realmonitor?channel=1&subtype=0";
-	//filenameInput = "rtsp://55555:55555@192.168.11.183:554/cam/realmonitor?channel=1&subtype=0";
-	//filenameInput = "rtsp://55555:55555@192.168.11.197:554/cam/realmonitor?channel=1&subtype=0";
-	//filenameInput = "rtsp://55555:55555@192.168.11.198:554/cam/realmonitor?channel=1&subtype=0";
-	//filenameInput = "rtsp://55555:55555@192.168.11.187:554/cam/realmonitor?channel=1&subtype=0";
-	//filenameInput = "rtsp://55555:55555@192.168.11.219:554/cam/realmonitor?channel=1&subtype=0";
-	//filenameInput = "rtsp://55555:55555@192.168.11.199:554/cam/realmonitor?channel=1&subtype=0";
-	//filenameInput = "rtsp://55555:55555@192.168.11.112:554/cam/realmonitor?channel=1&subtype=01";
-	//filenameInput = "rtsp://55555:Five55555@192.168.11.118:554/cam/realmonitor?channel=1&subtype=01";
-	//filenameInput = "rtsp://55555:Five55555@192.168.11.108:554/cam/realmonitor?channel=1&subtype=01";
-	//filenameInput = "rtsp://192.168.11.68:554/snl/live/1/1/B0601YE=-dBL3hYFJiG5Y";
-	//filenameInput = "rtsp://192.168.11.180:553/snl/live/1/1/B0601YE=-dBL3hYFJiG5Y";
-	filenameOutput = "D:\\TestVideo\\testCut.mkv";
-	/**/
-	pathInput = new char[filenameInput.size() + 1];
-	copy(filenameInput.begin(), filenameInput.end(), pathInput);
-	pathInput[filenameInput.size()] = '\0'; 
-	/**/
-	pathInput2 = new char[filenameInput2.size() + 1];
-	copy(filenameInput2.begin(), filenameInput2.end(), pathInput2);
-	pathInput2[filenameInput2.size()] = '\0';
-	/**/
-	pathOutput = new char[filenameOutput.size() + 1];
-	copy(filenameOutput.begin(), filenameOutput.end(), pathOutput);
-	pathOutput[filenameOutput.size()] = '\0';
+	player = new CFFmpegPlayer((PCHAR)filename.c_str(),nullptr,nullptr,nullptr, 30, hWnd);
+	player->Open();
+	player->Play();*/
+	/*-------------------------------------------------------------------------------------------------------*/
 
 
-	//CRecord *recorder = new CRecord(pathInput, 10000);
-	//
-	//if (recorder->Open()){
-	//	recorder->StartRecord();
-	//	Sleep(1000);
-	//	recorder->RefreshHeader();
-	//	/*Sleep(5000);
-	//	recorder->StopRecord();*/
-	//}
-	
-	
-	//cutTask = new CCutOperation("D:\\TestVideo\\test1.mkv", "D:\\TestVideo\\testCut1.mkv", 15000, 20000);
-	/*cutTask = new CCutOperation("D:\\TestVideo\\test2.mkv", "D:\\TestVideo\\testCut2.mkv", 20000, 35000);
-	cutTask = new CCutOperation("D:\\TestVideo\\test3.mkv", "D:\\TestVideo\\testCut3.mkv", 35000, 50000);*/
-	cutTask = new CConcatenateOperation("D:\\TestVideo\\testCut1.mkv", "D:\\TestVideo\\testCut2.mkv", "D:\\TestVideo\\testMerge1.mkv");
 	hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_WIN32PROJECT));
 
 	// Main message loop:
@@ -143,9 +92,6 @@ int APIENTRY _tWinMain(_In_ HINSTANCE hInstance,
 
 	return (int)msg.wParam;
 }
-
-
-
 
 //
 //  FUNCTION: MyRegisterClass()
@@ -221,56 +167,55 @@ LRESULT CALLBACK WndProcMain(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 
 	switch (message)
 	{
-	case WM_COMMAND:
-		wmId = LOWORD(wParam);
-		wmEvent = HIWORD(wParam);
-		// Parse the menu selections:
-		switch (wmId)
-		{
-		case IDM_ABOUT:
-			DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
+		case WM_COMMAND:
+			wmId = LOWORD(wParam);
+			wmEvent = HIWORD(wParam);
+			// Parse the menu selections:
+			switch (wmId)
+			{
+				case IDM_ABOUT:
+					DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
+					break;
+				case IDM_EXIT:
+					DestroyWindow(hWnd);
+					break;
+				case ID_Cut:
+					break;
+				case ID_Merge:
+					break;
+				default:
+					return DefWindowProc(hWnd, message, wParam, lParam);
+			}
 			break;
-		case IDM_EXIT:
-			DestroyWindow(hWnd);
+		case WM_PAINT:
+			hdc = BeginPaint(hWnd, &ps);
+			// TODO: Add any drawing code here...
+			EndPaint(hWnd, &ps);
 			break;
-		case ID_Cut:
-			break;
-		case ID_Merge:
+		case WM_DESTROY:
+			PostQuitMessage(0);
 			break;
 		default:
 			return DefWindowProc(hWnd, message, wParam, lParam);
-		}
-		break;	
-	case WM_PAINT:
-		hdc = BeginPaint(hWnd, &ps);
-		// TODO: Add any drawing code here...
-		EndPaint(hWnd, &ps);
-		break;
-	case WM_DESTROY:
-		PostQuitMessage(0);
-		break;
-	default:
-		return DefWindowProc(hWnd, message, wParam, lParam);
 	}
 	return 0;
 }
-
 // Message handler for about box.
 INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
 	UNREFERENCED_PARAMETER(lParam);
 	switch (message)
 	{
-	case WM_INITDIALOG:
-		return (INT_PTR)TRUE;
-
-	case WM_COMMAND:
-		if (LOWORD(wParam) == IDOK || LOWORD(wParam) == IDCANCEL)
-		{
-			EndDialog(hDlg, LOWORD(wParam));
+		case WM_INITDIALOG:
 			return (INT_PTR)TRUE;
-		}
-		break;
+
+		case WM_COMMAND:
+			if (LOWORD(wParam) == IDOK || LOWORD(wParam) == IDCANCEL)
+			{
+				EndDialog(hDlg, LOWORD(wParam));
+				return (INT_PTR)TRUE;
+			}
+			break;
 	}
 	return (INT_PTR)FALSE;
 }

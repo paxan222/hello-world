@@ -3,11 +3,8 @@
 /*-----------------Public----------------------------------------*/
 
 //Constructor
-CCutOperation::CCutOperation(PCHAR inputFilename, PCHAR outputFilename,
-	int startTimeMilliseconds, int endTimeMilliseconds
-	/*,FProgressCallback fProgressCallback = nullptr,
-	FEndOfOperationCallback fEofCallback = nullptr,
-	FErrorCallback fErrorCallback = nullptr*/) :CBaseOperation()
+CCutOperation::CCutOperation(PCHAR inputFilename, PCHAR outputFilename, int startTimeMilliseconds, int endTimeMilliseconds/*,
+	FProgressCallback fProgressCallback, FEndOfOperationCallback fEofCallback, FErrorCallback fErrorCallback*/) :CBaseOperation()
 {
 	std::thread([=]{
 		if (Init(inputFilename, outputFilename, startTimeMilliseconds, endTimeMilliseconds)){
@@ -30,7 +27,7 @@ CCutOperation::CCutOperation(PCHAR inputFilename, PCHAR outputFilename,
 						packet.dts = packet.pts;
 						av_interleaved_write_frame(m_outputFmtCtx, &packet);
 						//if (fProgressCallback)
-						//	std::thread([this]{fProgressCallback(endTimeMilliseconds - startTimeMilliseconds, currentPts - startTimeMilliseconds); }).detach();
+						//	std::thread([=]{fProgressCallback(endTimeMilliseconds - startTimeMilliseconds, currentPts - startTimeMilliseconds); }).detach();
 					}
 				}
 				else
@@ -46,7 +43,7 @@ CCutOperation::CCutOperation(PCHAR inputFilename, PCHAR outputFilename,
 							packet.dts = packet.pts;
 							av_interleaved_write_frame(m_outputFmtCtx, &packet);
 							//if (fProgressCallback)
-							//	std::thread([this]{fProgressCallback(endTimeMilliseconds - startTimeMilliseconds, currentPts - startTimeMilliseconds); }).detach();
+							//	std::thread([=]{fProgressCallback(endTimeMilliseconds - startTimeMilliseconds, currentPts - startTimeMilliseconds); }).detach();
 						}
 					}
 				}
@@ -60,19 +57,19 @@ CCutOperation::CCutOperation(PCHAR inputFilename, PCHAR outputFilename,
 			}
 			//Free packet
 			av_free_packet(&packet);
-
-
 			//Write trailer of outputFile and close input and output
 			av_write_trailer(m_outputFmtCtx);
 			avio_close(m_outputFmtCtx->pb);
 
 		}
+		//If Init return FALSE
 		else{
-
+			//if (fErrorCallback != nullptr)
+			//	std::thread([=]{ fErrorCallback(m_errorCode); }).detach();
 		}
-		/*if (m_fEofCb)
-		std::thread([this]{FEndOfOperationCallback(); }).detach();*/
 		delete this;
+		//if (fEofCallback)
+		//	std::thread([=]{fEofCallback(); }).detach();
 	}).detach();
 }
 
@@ -85,19 +82,14 @@ CCutOperation::~CCutOperation()
 
 // Open input file => Fill input streams => Check time conditions => Open output file
 BOOL CCutOperation::Init(PCHAR inputFilename, PCHAR outputFilename, int startTimeMilliseconds, int endTimeMilliseconds){
-	if (inputFilename == "" || outputFilename == "")
-		//if (m_fErrCb){
-		//	std::thread([this]{
-		//		ERROR_INFO ei;
-		//		ei.errorCode = ErrorCode::EC_OPENINPUT;
-		//		ei.message = ErrorMessage(ei.errorCode);
-		//		m_fErrCb(ei); }).detach();
-		//}
+	if (inputFilename == "" || outputFilename == ""){
+		//m_errorCode = ErrorCode::EmptyFilename;
 		return FALSE;
+	}
 	av_register_all();
 
 	// If we couldn't open input file - exit
-	if (!OpenInputFile(&m_inputFmtCtx, inputFilename))
+	if (!OpenInputFile(m_inputFmtCtx, inputFilename))
 		return FALSE;
 
 	// Find input video stream, if there is no stream than callback and exit
@@ -105,13 +97,7 @@ BOOL CCutOperation::Init(PCHAR inputFilename, PCHAR outputFilename, int startTim
 	if (videoStreamIndex >= 0)
 		m_inputVideoStream = m_inputFmtCtx->streams[videoStreamIndex];
 	else{
-		//if (m_fErrCb){
-		//	std::thread([this]{
-		//		ERROR_INFO ei;
-		//		ei.errorCode = ErrorCode::EC_OPENINPUT;
-		//		ei.message = ErrorMessage(ei.errorCode);
-		//		m_fErrCb(ei); }).detach();
-		//}
+		//m_errorCode = ErrorCode::VideoStreamNotExist;
 		return FALSE;
 	}
 	// Find input audio stream, if threre is no stream than work only with video
@@ -120,22 +106,26 @@ BOOL CCutOperation::Init(PCHAR inputFilename, PCHAR outputFilename, int startTim
 		m_inputAudioStream = m_inputFmtCtx->streams[audioStreamIndex];
 
 	if (!CheckTimeConditions(startTimeMilliseconds, endTimeMilliseconds)){
-		//if (m_fErrCb){
-		//	std::thread([this]{
-		//		ERROR_INFO ei;
-		//		ei.errorCode = ErrorCode::EC_OPENINPUT;
-		//		ei.message = ErrorMessage(ei.errorCode);
-		//		m_fErrCb(ei); }).detach();
-		//}
+		//m_errorCode = ErrorCode::ArgumentOutOfRange;
 		return FALSE;
 	}
 
 	// If we couldnt open output file - exit
 	if (!OpenOutputFile(outputFilename)){
+		//Error code is setting up in OpenOutputFile function
 		return FALSE;
 	}
 
 	return TRUE;
+}
+
+//Create output streams
+void CCutOperation::CreateOutputStreams(AVFormatContext *outputFmtCtx){
+	m_outputVideoStreamIndex = CreateStream(outputFmtCtx->oformat->video_codec, m_inputVideoStream);
+	//Create Audio stream if we have input audio stream
+	if (m_inputAudioStream != nullptr){
+		m_outputAudioStreamIndex = CreateStream(outputFmtCtx->oformat->audio_codec, m_inputAudioStream);
+	}
 }
 
 // Calculate duration and deltaPts => Check start and end time is bigger than 0, less than duration and different between it is bigger than deltaPts

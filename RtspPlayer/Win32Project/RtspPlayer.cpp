@@ -1,6 +1,5 @@
 #include "stdafx.h"
 #include "RtspPlayer.h"
-#include "easylogging++.h"
 
 #pragma comment(lib, "SDL2")
 #ifdef _DEBUG
