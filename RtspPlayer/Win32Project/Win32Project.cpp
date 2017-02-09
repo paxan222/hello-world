@@ -71,7 +71,7 @@ int APIENTRY _tWinMain(_In_ HINSTANCE hInstance,
 		MemLog* memLog = new MemLog("D:\\", GetCurrentProcessId());
 	}).detach();*/
 
-
+	//filenameInput = "D:\\TestVideo\\record0.mkv";
 
 	//filenameInput = "D:\\TestVideo\\test2.mkv";
 	//filenameInput2 = "D:\\TestVideo\\test1.mkv";
@@ -80,6 +80,7 @@ int APIENTRY _tWinMain(_In_ HINSTANCE hInstance,
 	//filenameInput = "rtsp://localhost:8554/test";
 	//filenameInput = "rtsp://admin:admin@192.168.11.231:554/RVi/1/1";
 	filenameInput = "rtsp://admin:admin@192.168.11.185:554/cam/realmonitor?channel=1&subtype=0";
+	//filenameInput = "rtsp://192.168.11.6:554/a52ae711-d3c3-4783-9227-d2e227960e6d";
 	//filenameInput = "rtsp://55555:55555@192.168.11.197:554/cam/realmonitor?channel=1&subtype=0";
 	//filenameInput = "rtsp://admin:1q2w3e4r5t6y@192.168.11.108:554/Streaming/Channels/101?transportmode=unicast&profile=Profile_1";
 	//filenameInput = "D:\\TestVideo\\big_buck_bunny_480p_h264.mov";
@@ -113,21 +114,22 @@ int APIENTRY _tWinMain(_In_ HINSTANCE hInstance,
 	pathOutput[filenameOutput.size()] = '\0';
 
 
-	//CRecord *recorder = new CRecord(pathInput, 10000);
-	//
-	//if (recorder->Open()){
-	//	recorder->StartRecord();
-	//	Sleep(1000);
-	//	recorder->RefreshHeader();
-	//	/*Sleep(5000);
-	//	recorder->StopRecord();*/
-	//}
+	CRecord *recorder = new CRecord(pathInput, 10000);
+	
+	if (recorder->Open()){
+		recorder->StartRecord();
+		Sleep(5000);
+		recorder->RefreshHeader();
+		Sleep(5000);
+		recorder->StopRecord();
+	}
 	
 	
 	//cutTask = new CCutOperation("D:\\TestVideo\\test1.mkv", "D:\\TestVideo\\testCut1.mkv", 15000, 20000);
 	/*cutTask = new CCutOperation("D:\\TestVideo\\test2.mkv", "D:\\TestVideo\\testCut2.mkv", 20000, 35000);
 	cutTask = new CCutOperation("D:\\TestVideo\\test3.mkv", "D:\\TestVideo\\testCut3.mkv", 35000, 50000);*/
-	cutTask = new CConcatenateOperation("D:\\TestVideo\\testCut1.mkv", "D:\\TestVideo\\testCut2.mkv", "D:\\TestVideo\\testMerge1.mkv");
+	//cutTask = new CConcatenateOperation("D:\\TestVideo\\testCut1.mkv", "D:\\TestVideo\\testCut2.mkv", "D:\\TestVideo\\testMerge1.mkv");
+	//cutTask = new CConcatenateOperation("D:\\TestVideo\\test1.mkv", "D:\\TestVideo\\test2.mkv", "D:\\TestVideo\\testMerge.mkv");
 	hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_WIN32PROJECT));
 
 	// Main message loop:

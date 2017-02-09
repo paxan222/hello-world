@@ -22,13 +22,16 @@ class CRecord{
 	AVOutputFormat				*m_outputFmt{ nullptr };
 	AVStream					*m_inputVideoStream{ nullptr }, *m_inputAudioStream{ nullptr }, *m_outputVideoStream{ nullptr }, *m_outputAudioStream{ nullptr };
 	AVIOContext					*m_receivedCtx{ nullptr };
-	const int					m_bufSize{ 32 * 1024 };
+	const int					m_bufSize{ 32*1024 };
 	BYTE						*m_buffer{ new BYTE[m_bufSize] };
 	bool						m_stop{ false };
 
+	bool						m_writeHeader{ true };
+	bool						m_isHeaderData{ false };
+
 	AVCodecContext				*m_videoCodec{ nullptr };
 	AVCodecContext				*m_audioCodec{ nullptr };
-	
+
 public:
 	//Constructor for fileoutput
 	//If outputFilename incorrect, than we get FALSE at guessing an outputFormat
@@ -73,10 +76,11 @@ public:
 	BOOL Open(); //Open stream or file
 	BOOL StartRecord(); // start record thread
 	BOOL StopRecord(); // stop record thread
-
+	void RefreshHeader();
 
 private:
 	BOOL Init(); //init input and output files
+	void WriteHeaderWithCallback();
 	void CreateStreams(); // Find and Create streams for output
 	void RecalculateTimeStamps(AVPacket *packet, AVRational inputTimeBase, AVRational outputTimeBase); //Recalculate pts, dts and duration
 	static int Interrupt_cb(void* opaque); // interrupt timeout callback

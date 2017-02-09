@@ -30,9 +30,31 @@ int CRecord::Interrupt_cb(void* opaque){
 	return 0;
 }
 
+FILE *outputFile;// = fopen("D:\\TestVideo\\record0.mkv", "wb");
+
+int count = 0;
+int64_t lastPts = 0;
+void writeFile(uint8_t *buf, int buf_size, bool isHeaderData){
+	if (isHeaderData){
+		if (outputFile != nullptr)
+			fclose(outputFile);
+		//_RPT0(0, "NewFile\n");
+		auto filename = "D:\\TestVideo\\record" + std::to_string(count) + ".mkv";
+		outputFile = fopen(filename.c_str(), "wb");
+		count++;
+	}
+	fwrite(buf, 1, buf_size, outputFile);
+
+	//_RPT1(0, "BufSize:%i\n", buf_size);
+	//_RPT1(0, "WriteCurrentPts: %i\n", currentPts);
+}
+
 int CRecord::ReceiveData_Cb(void* opaque, uint8_t *buf, int buf_size){
 	CRecord* recorder = static_cast<CRecord*>(opaque);
-	//recorder->m_RcvDtCb(buf, buf_size);
+
+	writeFile(buf, buf_size, recorder->m_isHeaderData);
+	//int lastpts = 0;
+	//recorder->m_RcvDtCb(buf, buf_size,  recorder->m_lastPts );
 	return 0;
 }
 BOOL CRecord::Init(){
@@ -57,24 +79,24 @@ BOOL CRecord::Init(){
 	// m_RcvDtCb == nullptr means write in file
 	if ((m_outputFilename == "") /*&& (m_RcvDtCb != nullptr)*/){ // запись через callback
 		//Guess outputformat
-		if ((m_outputFmt = av_guess_format("matroska", nullptr, nullptr)) == nullptr)
-		{
-			return FALSE;
-		}
-		//Alloc OutputFormatContext
-		m_outputFmtCtx = avformat_alloc_context();
-		m_outputFmtCtx->oformat = m_outputFmt;
-		//WriteCallback for AvioContext
-		m_receivedCtx = avio_alloc_context(m_buffer, m_bufSize, 1, this, nullptr, ReceiveData_Cb, nullptr);
-		m_outputFmtCtx->pb = m_receivedCtx;
-		m_outputFmtCtx->flags = AVFMT_FLAG_CUSTOM_IO;
+		//if ((m_outputFmt = av_guess_format("matroska", nullptr, nullptr)) == nullptr)
+		//{
+		//	return FALSE;
+		//}
+		////Alloc OutputFormatContext
+		//m_outputFmtCtx = avformat_alloc_context();
+		//m_outputFmtCtx->oformat = m_outputFmt;
+		////WriteCallback for AvioContext
+		//m_receivedCtx = avio_alloc_context(m_buffer, m_bufSize, 1, this, nullptr, ReceiveData_Cb, nullptr);
+		//m_outputFmtCtx->pb = m_receivedCtx;
+		//m_outputFmtCtx->flags = AVFMT_FLAG_CUSTOM_IO;
 
-		if (m_outputFmtCtx->oformat->flags & AVFMT_GLOBALHEADER)
-		{
-			m_outputFmtCtx->flags |= CODEC_FLAG_GLOBAL_HEADER;
-		}
+		//if (m_outputFmtCtx->oformat->flags & AVFMT_GLOBALHEADER)
+		//{
+		//	m_outputFmtCtx->flags |= CODEC_FLAG_GLOBAL_HEADER;
+		//}
 
-		CreateStreams();
+		//CreateStreams();
 	}
 	else{// запись напрямую в файл
 		//Guess outputformat
@@ -100,12 +122,34 @@ BOOL CRecord::Init(){
 		}
 	}
 
-	//Write header of outputFile
-	avformat_write_header(m_outputFmtCtx, nullptr);
 
 	return TRUE;
 }
+void CRecord::WriteHeaderWithCallback(){
+	delete[] m_buffer;
+	m_buffer = new BYTE[m_bufSize];
 
+	if (m_outputFmt = av_guess_format("matroska", nullptr, nullptr))
+
+		m_outputFmtCtx = avformat_alloc_context();
+	m_outputFmtCtx->oformat = m_outputFmt;
+
+	m_receivedCtx = avio_alloc_context(m_buffer, m_bufSize, 1, this, nullptr, ReceiveData_Cb, nullptr);
+	m_outputFmtCtx->pb = m_receivedCtx;
+
+	m_outputFmtCtx->flags = AVFMT_FLAG_CUSTOM_IO;
+
+	if (m_outputFmtCtx->oformat->flags & AVFMT_GLOBALHEADER)
+	{
+		m_outputFmtCtx->flags |= CODEC_FLAG_GLOBAL_HEADER;
+	}
+
+	CreateStreams();
+
+	m_isHeaderData = true;
+	avformat_write_header(m_outputFmtCtx, nullptr);
+	m_isHeaderData = false;
+}
 void CRecord::CreateStreams(){
 	//Finding inputStreams and creating outPutStreams
 	//Video
@@ -130,12 +174,14 @@ void CRecord::CreateStreams(){
 
 void CRecord::RecalculateTimeStamps(AVPacket *packet, AVRational inputTimeBase, AVRational outputTimeBase){
 	packet->pts = av_rescale_q(packet->pts, inputTimeBase, outputTimeBase);
-	packet->dts = AV_NOPTS_VALUE;
+	packet->dts = packet->pts;
 	packet->duration = av_rescale_q(packet->duration, inputTimeBase, outputTimeBase);
 }
 
 BOOL CRecord::StartRecord(){
 	std::thread([this]{
+		//Write header of outputFile
+		//m_askHeader = true;
 		while (!m_stop){
 			av_init_packet(&m_packet);
 			if (av_read_frame(m_inputFmtCtx, &m_packet)){
@@ -144,20 +190,40 @@ BOOL CRecord::StartRecord(){
 					std::thread([this]{m_EofCb(); }).detach();*/
 				break;
 			}
+			if (m_writeHeader && (m_packet.flags == AV_PKT_FLAG_KEY ||
+				m_packet.flags == AV_PKT_FLAG_KEY + AV_PKT_FLAG_CORRUPT ||
+				m_packet.flags == AV_PKT_FLAG_KEY + AV_PKT_FLAG_DISCARD ||
+				m_packet.flags == AV_PKT_FLAG_KEY + AV_PKT_FLAG_CORRUPT + AV_PKT_FLAG_DISCARD)){
+
+				m_writeHeader = false;
+
+				WriteHeaderWithCallback();
+			}
 			//Init packet
 			/*if (m_StartRecCb != nullptr)
 				std::thread([this]{m_StartRecCb(); }).detach();*/
 			//Recalculate pts, dts and duration
 			if (m_packet.stream_index == m_videoStreamIndex){
 				RecalculateTimeStamps(&m_packet, m_inputVideoStream->time_base, m_outputVideoStream->time_base);
+				//m_lastPts++;
+
 				m_packet.stream_index = m_outputVideoStream->index;
+				//Write the packet
+				//_RPT1(0, "KEY_FRAME_FLAG:%i\n", m_packet.flags);
+				av_interleaved_write_frame(m_outputFmtCtx, &m_packet);
+
+				//_RPT1(0, "lastPts: %i\n", m_lastPts);
+
+				//_RPT1(0, "m_lastPts: %i\n", m_lastPts);
 			}
 			if (m_packet.stream_index == m_audioStreamIndex){
 				RecalculateTimeStamps(&m_packet, m_inputAudioStream->time_base, m_outputAudioStream->time_base);
+				//m_lastPts++;
 				m_packet.stream_index = m_outputAudioStream->index;
+				//Write the packet
+				av_interleaved_write_frame(m_outputFmtCtx, &m_packet);
+				//_RPT1(0, "lastPts: %i\n", m_lastPts);
 			}
-			//Write the packet
-			av_interleaved_write_frame(m_outputFmtCtx, &m_packet);
 			//Free packet
 			av_free_packet(&m_packet);
 		}
@@ -166,10 +232,16 @@ BOOL CRecord::StartRecord(){
 		if ((m_outputFilename != "")/* && (m_RcvDtCb == nullptr)*/){
 			avio_close(m_outputFmtCtx->pb);
 		}
+		if (outputFile != nullptr)
+			fclose(outputFile);
 	}).detach();
 	return TRUE;
 }
 
 BOOL CRecord::StopRecord(){
 	return m_stop = true;
+}
+
+void CRecord::RefreshHeader(){
+	m_writeHeader = true;
 }
