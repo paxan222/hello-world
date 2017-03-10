@@ -40,10 +40,11 @@ namespace FFmpegPlayer
 			}
 		}
 
-		public void Close()
+		public void CloseChild()
 		{
 			if (_playerIntPtr != IntPtr.Zero)
 				NativePlayer.ReleasePlayer(_playerIntPtr);
+			Close();
 		}
 	}
 }

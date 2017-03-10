@@ -30,7 +30,7 @@ std::wstring StringToWString(const std::string& s)
 // Открытие файла с видео
 BOOL CFFmpegPlayer::Open()
 {
-	av_log_set_level(AV_LOG_VERBOSE);
+	av_log_set_level(AV_LOG_DEBUG);
 	class AVInitializer {
 		ULONG_PTR m_gdiplusToken;
 	public:
@@ -38,7 +38,7 @@ BOOL CFFmpegPlayer::Open()
 			av_register_all();
 			avformat_network_init();
 			Gdiplus::GdiplusStartupInput gdiplusStartupInput;
-			Gdiplus::GdiplusStartup(&m_gdiplusToken, &gdiplusStartupInput, NULL);		
+			Gdiplus::GdiplusStartup(&m_gdiplusToken, &gdiplusStartupInput, NULL);
 		}
 		~AVInitializer() {
 			// ExitInstance
@@ -372,10 +372,11 @@ void CFFmpegPlayer::streamsDetect()
 {
 	m_videoStreamIndex = av_find_best_stream(m_fmtCtx, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
 	m_audioStreamIndex = av_find_best_stream(m_fmtCtx, AVMEDIA_TYPE_AUDIO, -1, -1, nullptr, 0);
-	if (m_audioStreamIndex < 0 && m_videoStreamIndex < 0)
+	if (m_videoStreamIndex < 0)
 	{
 		if (m_cbOnError)
 			std::thread([this]{m_cbOnError("No streams found"); }).detach();
+		throw new std::exception("VideoStream not found");
 	}
 }
 
@@ -448,7 +449,7 @@ void CFFmpegPlayer::startDemuxer()
 	std::thread([this]()
 	{
 		DEBUG_MSG("Demuxer started");
-
+		int64_t lastPts = 0;
 		try
 		{
 			m_decoder.demux_state = state::InProgress;
@@ -465,9 +466,11 @@ void CFFmpegPlayer::startDemuxer()
 				if (!aborted_pkt)
 				{
 					pkt = Packet::New();
-
-					if (av_read_frame(m_fmtCtx, pkt->Raw())) {
+					auto readframe = av_read_frame(m_fmtCtx, pkt->Raw());
+					clog << "PTS: " << pkt->Raw()->pts << "\n";
+					if (readframe < 0) {
 						m_decoder.demux_state = state::Finished;
+						clog << "BREAK READING PCKTS!!!\n";
 						break;	// Eof or error
 					}
 				}
@@ -497,7 +500,8 @@ void CFFmpegPlayer::startDemuxer()
 
 					if (pkt->Raw()->stream_index == m_videoStreamIndex)
 					{
-						//std::clog << "Video PACKET push" << std::endl;
+
+						//clog << "PTS: " << pkt->Raw()->pts << "\n";
 						m_decoder.qVideoPackets.Push(std::move(pkt));
 					}
 					else if (pkt->Raw()->stream_index == m_audioStreamIndex && IsAudioEnabled())
@@ -714,10 +718,10 @@ void CFFmpegPlayer::startRenderer()
 	{
 		DEBUG_MSG("Renderer started");
 
-		AVFrame* pFrame = NULL;
+		AVFrame* pFrame = nullptr;
 		int numBytes;
-		uint8_t* buffer = NULL;
-		SwsContext* sws_context = NULL;
+		uint8_t* buffer = nullptr;
+		SwsContext* sws_context = nullptr;
 		try
 		{
 			m_rendererState = state::InProgress;
@@ -738,9 +742,9 @@ void CFFmpegPlayer::startRenderer()
 			pFrame = av_frame_alloc();
 			numBytes = avpicture_get_size(AV_PIX_FMT_RGB32, m_width,
 				m_height);
-			buffer = (uint8_t *)av_malloc(numBytes*sizeof(uint8_t));
+			buffer = static_cast<uint8_t *>(av_malloc(numBytes*sizeof(uint8_t)));
 
-			AVPixelFormat pixFormat;			
+			AVPixelFormat pixFormat;
 			switch (m_videoCtx->pix_fmt) {
 				case AV_PIX_FMT_YUVJ420P:
 					pixFormat = AV_PIX_FMT_YUV420P;
@@ -758,7 +762,7 @@ void CFFmpegPlayer::startRenderer()
 					break;
 			}
 			sws_context = sws_getContext(m_width, m_height, pixFormat, m_width, m_height, AV_PIX_FMT_RGB32, SWS_BILINEAR, NULL, NULL, NULL);
-			avpicture_fill((AVPicture *)pFrame, buffer, AV_PIX_FMT_RGB32, m_width, m_height);
+			avpicture_fill(reinterpret_cast<AVPicture *>(pFrame), buffer, AV_PIX_FMT_RGB32, m_width, m_height);
 			while (!m_quit)
 			{
 				begin_ts = av_gettime_relative();
@@ -786,7 +790,6 @@ void CFFmpegPlayer::startRenderer()
 				Frame::Ptr frame;
 				try
 				{
-					//std::clog << "Video FRAME pop" << std::endl;
 					frame = m_decoder.qVideoFrames.Pop();
 				}
 				catch (const Queue::abort&){ continue; }
@@ -807,7 +810,7 @@ void CFFmpegPlayer::startRenderer()
 
 				playback_video_ts = pic->pts;
 
-				sws_scale(sws_context, (uint8_t const * const *)pic->data, pic->linesize, 0, m_height, pFrame->data, pFrame->linesize);
+				sws_scale(sws_context, static_cast<uint8_t const * const *>(pic->data), pic->linesize, 0, m_height, pFrame->data, pFrame->linesize);
 
 				Gdiplus::Image* img = new Gdiplus::Bitmap(pic->width, pic->height, pFrame->linesize[0], PixelFormat32bppRGB, pFrame->data[0]);
 
@@ -819,18 +822,9 @@ void CFFmpegPlayer::startRenderer()
 				ReleaseDC(m_hMainWindow, wndHdc);
 				delete img;
 
-				//// Do render onto callback
-				//if (!m_cbOnFrame)
-				//	throw std::exception("Callback is null!");
-
-				////std::clog << "RENDERING..." << std::endl;
-				//m_cbOnFrame(pic->data[0], pic->linesize[0] * m_height,
-				//	pic->linesize[0], m_width, m_height, static_cast<DWORD>(playback_video_ts/1000));
-
 				auto end_ts = av_gettime_relative();
 
 				auto delay = (frame_q - (end_ts - begin_ts))/* * m_speedScaleFactor*/;
-				//std::cout << "delay: " << delay << std::endl;
 				if (delay > 0)
 					std::this_thread::sleep_for(std::chrono::microseconds(static_cast<int>(rint(delay))));
 				m_current_timestamp = playback_video_ts;

@@ -41,9 +41,9 @@ namespace FFmpegPlayer
 
 		private void MainWindow_OnClosed(object sender, EventArgs e)
 		{
-			foreach (var window in _windowList)
+			foreach (var window in _windowList.Cast<TempWindow>())
 			{
-				window.Close();
+				window.CloseChild();
 			}
 		}
 	}

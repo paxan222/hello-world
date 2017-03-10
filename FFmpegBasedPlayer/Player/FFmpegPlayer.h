@@ -86,7 +86,7 @@ class CFFmpegPlayer : public CBasePlayer
 	const AVPixelFormat						m_dstPixFmt{ AV_PIX_FMT_YUV420P };
 	const AVSampleFormat					m_dstSndFmt{ AV_SAMPLE_FMT_S16 };
 	const Uint16							AUDIO_SAMPLES{ 1024 };
-	static const std::size_t				DEMUXER_QUEUE_SIZE{ 600 };
+	static const std::size_t				DEMUXER_QUEUE_SIZE{ 200 };
 	static const std::size_t				VIDEO_QUEUE_SIZE{ 30 };
 	static const std::size_t				AUDIO_QUEUE_SIZE{ 60 };
 	static const std::size_t				QUEUE_SIZE_THRESH{ 3 };
@@ -95,17 +95,17 @@ class CFFmpegPlayer : public CBasePlayer
 
 	AVFormatContext							*m_fmtCtx{ nullptr };
 	AVDictionary							*m_options{ NULL }; // словарь с опциями для поднятия rtp соединения
-	AVCodec									*m_codecAudio, *m_codecVideo;
-	AVCodecContext							*m_audioCtx, *m_videoCtx;
+	AVCodec									*m_codecAudio{ nullptr }, *m_codecVideo{ nullptr };
+	AVCodecContext							*m_audioCtx{ nullptr }, *m_videoCtx{ nullptr };
 	int										m_videoStreamIndex{ -1 }, m_audioStreamIndex{ -1 };
 
-	AVPixelFormat							*m_pixFmt;
+	AVPixelFormat							*m_pixFmt{ nullptr };
 	int										m_width{ 0 }, m_height{ 0 };
 	double									m_fps;
 
 	//float									m_speedScaleFactor{ 1.0 };
 
-	SwrContext								*m_resampleCtx;
+	SwrContext								*m_resampleCtx{nullptr};
 
 	SDL_AudioSpec							m_audioSpec, m_audioDesiredSpec{};
 	SDL_AudioDeviceID						m_audioDevice;
@@ -216,15 +216,15 @@ public:
 		{
 			// swallow any exception in destructor
 		}
-		if (&m_resampleCtx != NULL)
+		if (&m_resampleCtx != nullptr)
 			swr_free(&m_resampleCtx);
-		if (m_audioCtx != NULL)
+		if (m_audioCtx != nullptr)
 			avcodec_close(m_audioCtx);
-		if (m_videoCtx != NULL)
+		if (m_videoCtx != nullptr)
 			avcodec_close(m_videoCtx);
-		if (&m_options != NULL)
+		if (&m_options != nullptr)
 			av_dict_free(&m_options); // очищаем словарь
-		if (&m_fmtCtx != NULL)
+		if (&m_fmtCtx != nullptr)
 			avformat_close_input(&m_fmtCtx);
 	}
 
