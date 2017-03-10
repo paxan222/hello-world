@@ -51,7 +51,7 @@ CBaseRecorder::CBaseRecorder(/*FErrorCallback fErrorCallback, FStartRecordCallba
 	m_StartRecCb = fStartRecordCallback;*/
 	//_RPT1(0, "MutexLock: %i\n", timer());
 	//mutex.lock();
-	av_register_all();
+	//av_register_all();
 	//_RPT1(0, "MutexUnlock: %i\n", timer());
 	//mutex.unlock();
 }
@@ -112,7 +112,8 @@ BOOL CBaseRecorder::StartRecord(){
 			//End write packet
 		}
 		//Write trailer of outputFile and close input and output
-		WriteTrailer(m_outputFmtCtx);
+		if (m_outputFmtCtx)
+			WriteTrailer(m_outputFmtCtx);
 	}).detach();
 	return TRUE;
 }
@@ -125,6 +126,22 @@ clock_t startTimer = clock();
 int newtime = GetTickCount();
 /*protected*/
 BOOL CBaseRecorder::OpenInputStream(PCHAR rtspPath, int connectionTimeout, int counter){
+
+	class AVInitializer {
+		public:
+			AVInitializer() {
+				av_register_all();
+				avformat_network_init();
+				
+			}
+			~AVInitializer() {
+				avformat_network_deinit();
+				
+			}
+			
+	};
+	static AVInitializer sAVInit;
+
 	if (rtspPath == ""){		
 		//m_errorCode
 		return FALSE;
@@ -150,23 +167,23 @@ BOOL CBaseRecorder::OpenInputStream(PCHAR rtspPath, int connectionTimeout, int c
 	//Connection with interrupt callback
 	if (connectionTimeout > 0){
 		m_inputFmtCtx->interrupt_callback.callback = [](void *opaque){
-			/*CBaseRecorder* recorder = static_cast<CBaseRecorder*>(opaque);
+			CBaseRecorder* recorder = static_cast<CBaseRecorder*>(opaque);
 			int time = GetTickCount();
 			if ((time - recorder->m_timePrev) > recorder->m_connectionTimeout && !recorder->m_interrupDisable){
 				_RPT1(0, "Time: %i\t", (time - recorder->m_timePrev));
+				//LOG("Interrupt");
+				return 1;
+			}
+			return 0;
+			/*AVFormatContext* inpt = static_cast<AVFormatContext*>(opaque);
+			int time = GetTickCount();
+			if ((time - newtime) > 10000){
 				LOG("Interrupt");
 				return 1;
 			}
 			return 0;*/
-			AVFormatContext* inpt = static_cast<AVFormatContext*>(opaque);
-			int time = GetTickCount();
-			if ((time - newtime) > 5000){
-				LOG("Interrupt");
-				return 1;
-			}
-			return 0;
 		};
-		m_inputFmtCtx->interrupt_callback.opaque = m_inputFmtCtx;
+		m_inputFmtCtx->interrupt_callback.opaque = this;
 		m_connectionTimeout = connectionTimeout;
 		m_timePrev = GetTickCount();
 	}
@@ -174,17 +191,17 @@ BOOL CBaseRecorder::OpenInputStream(PCHAR rtspPath, int connectionTimeout, int c
 	/*
 	*	Open rtsp stream
 	*/	
-	AVInputFormat *inputfmt = av_find_input_format("rtsp");
-	m_inputFmtCtx->iformat = inputfmt;
-	LOG("Start avformat_open_input");
-	if (avformat_open_input(&m_inputFmtCtx, rtspPath, inputfmt, &dictionary) != 0){
+	//AVInputFormat *inputfmt = av_find_input_format("rtsp");
+	//m_inputFmtCtx->iformat = inputfmt;
+	//LOG("Start avformat_open_input");
+	if (avformat_open_input(&m_inputFmtCtx, rtspPath, nullptr, &dictionary) != 0){
 		auto ret = AVERROR(ENOMEM);
 		char err_buf[255];
 		av_strerror(ret, err_buf, sizeof(err_buf));
-		LOG(err_buf);
+		//LOG(err_buf);
 		return FALSE;
 	}
-	LOG("++avformat_open_input");
+	//LOG("++avformat_open_input");
 
 	av_dict_free(&dictionary);
 	//av_dump_format(m_inputFmtCtx,0,rtspPath,0);
@@ -194,30 +211,30 @@ BOOL CBaseRecorder::OpenInputStream(PCHAR rtspPath, int connectionTimeout, int c
 
 	//Find stream info
 	//LOG("avformat_find_stream_info");
-	//if (avformat_find_stream_info(m_inputFmtCtx, nullptr) < 0){
-	//	auto ret = AVERROR(ENOMEM);
-	//	char err_buf[255];
-	//	av_strerror(ret, err_buf, sizeof(err_buf));
-	//	LOG(err_buf);
-	//	return FALSE;
-	//}
+	if (avformat_find_stream_info(m_inputFmtCtx, nullptr) < 0){
+		auto ret = AVERROR(ENOMEM);
+		char err_buf[255];
+		av_strerror(ret, err_buf, sizeof(err_buf));
+		//LOG(err_buf);
+		return FALSE;
+	}
 	//LOG("++avformat_find_stream_info");
 
 
-	//// Find input video stream, if there is no stream than callback and exit
-	//auto streamIndex = av_find_best_stream(m_inputFmtCtx, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
-	//if (streamIndex >= 0)
-	//	m_inputVideoStream = m_inputFmtCtx->streams[streamIndex];
-	//else{
-	//	//m_errorCode = ErrorCode::VideoStreamNotExist;
-	//	
-	//	LOG("EmptyVideoStream");
-	//	return FALSE;
-	//}
-	//// Find input audio stream, if threre is no stream than work only with video
-	//streamIndex = av_find_best_stream(m_inputFmtCtx, AVMEDIA_TYPE_AUDIO, -1, -1, nullptr, 0);
-	//if (streamIndex >= 0)
-	//	m_inputAudioStream = m_inputFmtCtx->streams[streamIndex];
+	// Find input video stream, if there is no stream than callback and exit
+	auto streamIndex = av_find_best_stream(m_inputFmtCtx, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
+	if (streamIndex >= 0)
+		m_inputVideoStream = m_inputFmtCtx->streams[streamIndex];
+	else{
+		//m_errorCode = ErrorCode::VideoStreamNotExist;
+		
+		//LOG("EmptyVideoStream");
+		return FALSE;
+	}
+	// Find input audio stream, if threre is no stream than work only with video
+	streamIndex = av_find_best_stream(m_inputFmtCtx, AVMEDIA_TYPE_AUDIO, -1, -1, nullptr, 0);
+	if (streamIndex >= 0)
+		m_inputAudioStream = m_inputFmtCtx->streams[streamIndex];
 	m_interrupDisable = true;
 
 	_RPT3(0, "%i\t\%i\t%s\n", GetCurrentThreadId(), timer(startTimer), "EndOpen");

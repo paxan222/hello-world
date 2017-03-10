@@ -59,15 +59,43 @@ int APIENTRY _tWinMain(_In_ HINSTANCE hInstance,
 	{
 		return FALSE;
 	}
-	/*-------------------------------------------------------------------------------------------------------*/	
+	/*-------------------------------------------------------------------------------------------------------*/
 	/*std::thread([=] {
 		MemLog* memLog = new MemLog("D:\\", GetCurrentProcessId());
 		}).detach();*/
 
-	RecordStreamArray();
+	//RecordStream("blabla", "Tmp", 1);
 
+	//RecordStreamArray();
+	/*CBaseOperation *operation;
+	int headerSize = 16;
+	int width = 1280;
+	int heigth = 720;
+	auto bufferSize = headerSize + width*heigth * 24 / 8;
+	bufferSize = 17931;
+	char* buffer = new char[bufferSize];
+	for (int i = 1; i < 2; i++){		
+		auto timestamp = 2000 * i;
+		clock_t start = clock();
+		int res = operation->GetJpeg("D:\\TestVideo\\testMerge.mkv", buffer, bufferSize, 640, 360, timestamp);
+		auto time = (clock() - start);
+		_RPT1(0, "Time:%i\n", time);
+		char filename[256];
+		sprintf(filename, "D:\\TestVideo\\TestPicture\\screen%d.bmp", i);
+		FILE *file = fopen(filename, "wb");
+		fwrite(buffer, bufferSize, 1, file);
+		fclose(file);
+	}*/
+
+	//delete[] buffer;
+
+	//DestroyWindow(hWnd);
+	//operation->GetJpeg("rtsp://localhost:8554/test", "tmp.bmp", 166, 128, 36000);
 	//RecordStream("rtsp://55555:55555@192.168.11.178:554/cam/realmonitor?channel=1&subtype=0", "Rebuild.mkv", 0);
 
+	player = new CFFmpegPlayer("rtsp://192.168.11.66:10000/d6f53715-6024-4736-b96b-7d0752537fdb", nullptr, nullptr, nullptr, 5000, hWnd);
+	player->Open();
+	player->Play();
 	/*std::string filename = "rtsp://192.168.11.6:554/eba945dd-13be-4b68-b0ae-4374d1b817bd";
 
 
@@ -164,7 +192,7 @@ LRESULT CALLBACK WndProcMain(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 	int wmId, wmEvent;
 	PAINTSTRUCT ps;
 	HDC hdc;
-
+	DWORD pos;
 	switch (message)
 	{
 		case WM_COMMAND:
@@ -180,8 +208,12 @@ LRESULT CALLBACK WndProcMain(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPar
 					DestroyWindow(hWnd);
 					break;
 				case ID_Cut:
+					pos = player->GetPlaybackPosition();
+					player->SetPlaybackPosition(pos - 10000);
 					break;
 				case ID_Merge:
+					pos = player->GetPlaybackPosition();
+					player->SetPlaybackPosition(pos + 10000);
 					break;
 				default:
 					return DefWindowProc(hWnd, message, wParam, lParam);

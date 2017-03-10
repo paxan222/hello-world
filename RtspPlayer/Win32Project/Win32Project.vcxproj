@@ -112,6 +112,7 @@
     <ClInclude Include="RtspDecoder.h" />
     <ClInclude Include="RtspPlayer.h" />
     <ClInclude Include="RtspRecorder.h" />
+    <ClInclude Include="RtspRecorderApi.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="SunellDecoder.h" />
     <ClInclude Include="SunellPlayer.h" />
@@ -143,6 +144,7 @@
     <ClCompile Include="RtspDecoder.cpp" />
     <ClCompile Include="RtspPlayer.cpp" />
     <ClCompile Include="RtspRecorder.cpp" />
+    <ClCompile Include="RtspRecorderApi.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>

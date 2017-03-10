@@ -18,10 +18,12 @@ extern "C" {
 #include <libavcodec\avcodec.h>
 #include <libavformat\avformat.h>
 #include <libavformat\avio.h>
+#include <libswscale\swscale.h>
 }
 #pragma comment (lib, "avformat.lib")
 #pragma comment (lib, "avcodec.lib")
 #pragma comment (lib, "avutil.lib")
+#pragma comment (lib, "swscale.lib")
 
 //#include "RtspExport.h"
 
@@ -36,6 +38,7 @@ public:
 	virtual ~CBaseOperation();
 	//Return mediaFileDuration
 	static int GetFileDuration(PCHAR filename);
+	static int GetJpeg(PCHAR filename, char* strBuf, int stdBufSize, int width, int height, int64_t timestamp);
 	//Cancel task
 	BOOL CancelTask();
 protected:
@@ -75,4 +78,10 @@ protected:
 	virtual void CreateOutputStreams(AVFormatContext *outputFmtCtx) abstract;
 	//Recalculate timestamps of the packet using timebase of input and output streams and offset if it necessary
 	void RecalculateTimeStamps(AVPacket *packet, AVRational inputTimeBase, AVRational outputTimeBase, int offset = NULL);
+
+private:
+	static void saveFrame(AVFrame *pFrame, PCHAR outputFilename, int width, int height);
+	static HRESULT GetGdiplusEncoderClsid(__in LPCWSTR pwszFormat, __out GUID *pGUID);
+	static int saveToJpeg(AVFrame* pFrame, int width, int height, char* buffer, int bufSize);
+	static void saveFrameToBmp(AVFrame *pFrame, PCHAR outputFilename, int width, int height);
 };

@@ -15,6 +15,8 @@
 #endif
 #pragma warning(pop)
 
+#define LOG(msg) _RPT2(0,"%i\t\t%s\n", GetCurrentThreadId(), msg );
+
 std::wstring StringToWString(const std::string& s)
 {
 	int len;
@@ -67,14 +69,26 @@ BOOL CFFmpegPlayer::Init()
 	m_fmtCtx->interrupt_callback.opaque = 0;*/
 	timeoutPrev = GetTickCount();
 	timeout = m_timeout;
-	if (avformat_open_input(&m_fmtCtx, m_fileName.c_str(), nullptr, &m_options))
+	LOG("OpenInput");
+	if (avformat_open_input(&m_fmtCtx, m_fileName.c_str(), nullptr, &m_options)){
+		auto ret = AVERROR(ENOMEM);
+		char err_buf[255];
+		av_strerror(ret, err_buf, sizeof(err_buf));
+		LOG(err_buf);
 		return FALSE;
-	timeoutFlag = true;
-
-	if (0 > avformat_find_stream_info(m_fmtCtx, nullptr))
+	}
+	LOG("FindStreamInfo");
+	
+	if (0 > avformat_find_stream_info(m_fmtCtx, nullptr)){
+		auto ret = AVERROR(ENOMEM);
+		char err_buf[255];
+		av_strerror(ret, err_buf, sizeof(err_buf));
+		LOG(err_buf);
 		return FALSE;
+	}
 	av_dump_format(m_fmtCtx, 0, m_fileName.c_str(), 0);
 	m_fileName = "";
+	timeoutFlag = true;
 	try	{
 		streamsDetect();
 		streamsOpen();
@@ -691,8 +705,6 @@ void CFFmpegPlayer::startRenderer()
 
 			int64_t playback_video_ts{ 0 };
 			//int64_t drift{ 0 };
-			int64_t begin_ts{ 0 };
-			int64_t last_frame{ 0 };
 
 			// warm up the buffer
 			m_decoder.qVideoFrames.Wait(500);
@@ -710,12 +722,6 @@ void CFFmpegPlayer::startRenderer()
 			avpicture_fill((AVPicture *)pFrame, buffer, AV_PIX_FMT_RGB32, m_width, m_height);
 			while (!m_quit)
 			{
-				last_frame = begin_ts;
-				begin_ts = av_gettime_relative();
-				if (last_frame)
-					last_frame = begin_ts - last_frame;
-
-				playback_video_ts += last_frame;
 
 				std::unique_lock<decltype(m_pauseMutex)> lk(m_pauseMutex);
 				m_unpause.wait(lk, [this] {
@@ -740,11 +746,15 @@ void CFFmpegPlayer::startRenderer()
 					std::clog << "Video FRAME pop" << std::endl;
 					frame = m_decoder.qVideoFrames.Pop();
 				}
-				catch (const Queue::abort&){ continue; }
+				catch (const Queue::abort&)
+				{
+					continue;
+				}
 
 				if (!frame)
 					throw std::exception("Empty frame");
 
+				playback_video_ts = frame->Raw()->pts;
 
 				RECT rect;
 				GetWindowRect(m_hMainWindow, &rect);
@@ -777,13 +787,8 @@ void CFFmpegPlayer::startRenderer()
 				//m_cbOnFrame(pic->data[0], pic->linesize[0] * m_height,
 				//	pic->linesize[0], m_width, m_height, static_cast<DWORD>(playback_video_ts/1000));
 
-				auto end_ts = av_gettime_relative();
-
-				auto delay = (frame_q - (end_ts - begin_ts))/* * m_speedScaleFactor*/;
-				//std::cout << "delay: " << delay << std::endl;
-				if (delay > 0)
-					std::this_thread::sleep_for(std::chrono::microseconds(static_cast<int>(rint(delay))));
-				m_current_timestamp = playback_video_ts / 1000;
+				
+				m_current_timestamp = playback_video_ts;
 			}
 			sws_freeContext(sws_context);
 		}

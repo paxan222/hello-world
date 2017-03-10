@@ -32,7 +32,7 @@ extern "C" {
 
 class CBaseRecorder
 {
-	bool m_interrupDisable{ false };
+	bool m_interrupDisable{ false };	
 public:
 	/*
 	*	Constructor
@@ -55,7 +55,6 @@ private:
 	*	blocking operation will be aborted.
 	*/
 	static int Interrupt_cb(void *opaque);
-
 	/**
 	*	return TRUE if the packet is I-Frame;
 	*	return FALSE if not;
