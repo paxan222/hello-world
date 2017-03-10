@@ -20,6 +20,7 @@ namespace FFmpegPlayer
 	/// </summary>
 	public partial class TempWindow : Window
 	{
+		private IntPtr _playerIntPtr;
 		public TempWindow()
 		{
 			InitializeComponent();
@@ -30,9 +31,19 @@ namespace FFmpegPlayer
 			Show();
 			var wih = new WindowInteropHelper(this);
 			IntPtr hwnd = wih.Handle;
-			IntPtr playerIntPtr = NativePlayer.GetRtspPlayer(path, null, null, null, 10000, hwnd);
-			NativePlayer.Play(playerIntPtr);
+			_playerIntPtr = NativePlayer.GetRtspPlayer(path, null, null, null, 10000, hwnd);
+			if (_playerIntPtr != IntPtr.Zero)
+				NativePlayer.Play(_playerIntPtr);
+			else
+			{
+				Close();
+			}
+		}
 
+		public void Close()
+		{
+			if (_playerIntPtr != IntPtr.Zero)
+				NativePlayer.ReleasePlayer(_playerIntPtr);
 		}
 	}
 }

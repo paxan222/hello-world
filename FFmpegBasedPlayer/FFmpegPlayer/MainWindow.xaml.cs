@@ -24,6 +24,7 @@ namespace FFmpegPlayer
 		private string _path;
 		private IntPtr _hwnd;
 		private IntPtr _playerIntPtr;
+		private List<Window> _windowList = new List<Window>(); 
 
 		public MainWindow()
 		{
@@ -34,7 +35,16 @@ namespace FFmpegPlayer
 		{
 			_path = PathTextBox.Text;
 			var childWindow = new TempWindow();
+			_windowList.Add(childWindow);
 			childWindow.Show(_path);
+		}
+
+		private void MainWindow_OnClosed(object sender, EventArgs e)
+		{
+			foreach (var window in _windowList)
+			{
+				window.Close();
+			}
 		}
 	}
 }
