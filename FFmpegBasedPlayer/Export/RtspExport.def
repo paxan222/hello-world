@@ -1,0 +1,6 @@
+LIBRARY
+EXPORTS
+	GetExporter
+	Cut
+	Merge
+	Cancel

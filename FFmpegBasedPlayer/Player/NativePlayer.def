@@ -1,0 +1,28 @@
+LIBRARY
+EXPORTS
+	InputData
+	GetPlayer
+	GetLivePlayer
+	GetRtspPlayer
+	ReleasePlayer
+	GetStreamInfo
+	Play
+	Pause
+	Stop
+	SwitchSound
+	GetVolume
+	SetVolume
+	SetPlaybackPosition
+	MoveToNextFrame
+	MoveToPreviousFrame
+	IncreasePlaybackSpeed
+	DecreasePlaybackSpeed
+	Refresh
+	SaveSnapshoot
+	GetPlaybackPosition
+	SeekPositionByTime
+	SetStretchMode
+	GetSourceBufferMaxSize
+	GetSourceBufferRemainSize
+	ResetSourceBuffer
+	InitializationFileMode
