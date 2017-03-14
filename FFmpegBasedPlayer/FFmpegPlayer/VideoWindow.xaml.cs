@@ -18,10 +18,11 @@ namespace FFmpegPlayer
 	/// <summary>
 	/// Interaction logic for TempWindow.xaml
 	/// </summary>
-	public partial class TempWindow : Window
+	public partial class VideoWindow : Window
 	{
 		private IntPtr _playerIntPtr;
-		public TempWindow()
+
+		public VideoWindow()
 		{
 			InitializeComponent();
 		}
@@ -45,6 +46,20 @@ namespace FFmpegPlayer
 			if (_playerIntPtr != IntPtr.Zero)
 				NativePlayer.ReleasePlayer(_playerIntPtr);
 			Close();
+		}
+
+		private void SwitchSound_OnClick(object sender, RoutedEventArgs e)
+		{
+			if (ReferenceEquals(SwitchSound.Content, "Mute"))
+			{
+				SwitchSound.Content = "Unmute";
+				NativePlayer.SwitchSound(_playerIntPtr, false);
+			}
+			else
+			{
+				SwitchSound.Content = "Mute";
+				NativePlayer.SwitchSound(_playerIntPtr, true);
+			}
 		}
 	}
 }

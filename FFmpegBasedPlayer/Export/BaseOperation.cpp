@@ -74,12 +74,17 @@ int CBaseOperation::GetFrame(PCHAR inputFilename, char *buffer, int bufferSize, 
 	imgconvertCtx = sws_getContext(codecCtx->width, codecCtx->height, codecCtx->pix_fmt, width, height, AV_PIX_FMT_RGB32, SWS_BICUBIC, NULL, NULL, NULL);
 	avpicture_fill(reinterpret_cast<AVPicture *>(frame_rgb), avpicBuffer, AV_PIX_FMT_RGB32, width, height);
 
-	if (timestamp > fmtCtx->duration / AV_TIME_BASE*1000){
+	/*if (timestamp > fmtCtx->duration / AV_TIME_BASE*1000){
+		error = 1;
+		goto cleanUp;
+	}*/
+
+	auto ret = av_seek_frame(fmtCtx, videoStreamIndex, timestamp, AVSEEK_FLAG_FRAME);
+	if (ret <0)
+	{
 		error = 1;
 		goto cleanUp;
 	}
-
-	av_seek_frame(fmtCtx, videoStreamIndex, timestamp, AVSEEK_FLAG_FRAME);
 	av_read_frame(fmtCtx, &packet);
 	if (0 > avcodec_decode_video2(codecCtx, frame, &gotFrame, &packet)){
 		error = 2;

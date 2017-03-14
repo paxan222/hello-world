@@ -1,8 +1,8 @@
-﻿<Window x:Class="FFmpegPlayer.TempWindow"
+﻿<Window x:Class="FFmpegPlayer.ImageWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="TempWindow" Height="720" Width="1280" ResizeMode="NoResize">
+        Title="ImageWindow" Height="300" Width="300">
     <Grid>
-        
+        <Image x:Name="Image"/>
     </Grid>
 </Window>

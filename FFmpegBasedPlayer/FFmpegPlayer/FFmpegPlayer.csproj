@@ -54,9 +54,16 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
-    <Compile Include="TempWindow.xaml.cs">
-      <DependentUpon>TempWindow.xaml</DependentUpon>
+    <Compile Include="ImageWindow.xaml.cs">
+      <DependentUpon>ImageWindow.xaml</DependentUpon>
     </Compile>
+    <Compile Include="VideoWindow.xaml.cs">
+      <DependentUpon>VideoWindow.xaml</DependentUpon>
+    </Compile>
+    <Page Include="ImageWindow.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
     <Page Include="MainWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
@@ -69,7 +76,7 @@
       <DependentUpon>MainWindow.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
-    <Page Include="TempWindow.xaml">
+    <Page Include="VideoWindow.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>
@@ -99,6 +106,10 @@
     <AppDesigner Include="Properties\" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\ExportWrap\ExportWrap.csproj">
+      <Project>{7B9AF862-B50F-47BD-956F-FFAE38C62BE6}</Project>
+      <Name>ExportWrap</Name>
+    </ProjectReference>
     <ProjectReference Include="..\PlayerWrap\PlayerWrap.csproj">
       <Project>{2D1A57CE-E5AF-415C-A0B6-C21A1A83C17D}</Project>
       <Name>PlayerWrap</Name>

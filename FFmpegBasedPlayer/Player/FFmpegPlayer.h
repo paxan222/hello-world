@@ -81,7 +81,7 @@ private:
 class CFFmpegPlayer : public CBasePlayer
 {
 	int										m_timeout = 0;
-	bool									m_timeoutFlag{ false };
+	bool									m_skipCheckTimeoutFlag{ false };
 	unsigned long							m_timeoutPrev = 0;
 	const AVPixelFormat						m_dstPixFmt{ AV_PIX_FMT_YUV420P };
 	const AVSampleFormat					m_dstSndFmt{ AV_SAMPLE_FMT_S16 };

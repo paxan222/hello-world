@@ -1,12 +1,14 @@
 ﻿<Window x:Class="FFmpegPlayer.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="MainWindow" Height="100" Width="525"
+        Title="MainWindow" Height="165" Width="525"
 		Closed="MainWindow_OnClosed">
     <Grid >
 		<StackPanel>
 			<TextBox x:Name="PathTextBox"></TextBox>
-			<Button x:Name="OpenButton" Content="Open" Click="OpenButton_OnClick"></Button>
+			<Button x:Name="OpenButton" Content="Open stream" Click="OpenButton_OnClick"></Button>
+			<TextBox x:Name="PathImageTextBox"/>
+			<Button x:Name="OpenImageButton" Content="Open image" Click="OpenImageButton_OnClick"/>
 		</StackPanel>
     </Grid>
 </Window>

@@ -1,9 +1,9 @@
 ﻿using System;
-using System.Dynamic;
 using System.IO;
 using System.Runtime.InteropServices;
+using RVI.RtspExportWrap;
 
-namespace RVI.RtspExportWrap
+namespace RtspExportWrap
 {
 	public class RtspExport
 	{
@@ -29,7 +29,7 @@ namespace RVI.RtspExportWrap
 		/// <summary>
 		/// Путь к библиотеке с модулем записи
 		/// </summary>
-		private const string RTSP_EXPORT_DLL_NAME = @"\Dll\RVI.RtspExport.dll";
+		private const string RTSP_EXPORT_DLL_NAME = @"\Dll\Export.dll";
 
 		/// <summary>
 		/// Операция обрезки видео
@@ -120,7 +120,6 @@ namespace RVI.RtspExportWrap
 			}
 			int defaultBufferSize = 1024;
 			bool isFinding = false;
-			int writtenSize = 0;
 			while (!isFinding)
 			{
 				Byte[] buffer = new byte[defaultBufferSize];
@@ -145,12 +144,7 @@ namespace RVI.RtspExportWrap
 					case 3:
 						throw new Exception("Невозможно получить изображение");
 					default:
-						writtenSize = res; // ошибка Размер буффера меньше необходимого
-
-						var bw = new BinaryWriter(stream);
-						bw.Write(buffer);
-						bw.Close();
-						//stream.Write(buffer,0, writtenSize);
+						stream.Write(buffer,0, buffer.Length);
 						isFinding = true;
 						break;
 						//throw new Exception(string.Format("Размер буффера меньше необходимого: {0}", task));

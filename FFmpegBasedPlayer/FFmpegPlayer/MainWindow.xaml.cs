@@ -34,17 +34,25 @@ namespace FFmpegPlayer
 		private void OpenButton_OnClick(object sender, RoutedEventArgs e)
 		{
 			_path = PathTextBox.Text;
-			var childWindow = new TempWindow();
+			var childWindow = new VideoWindow();
 			_windowList.Add(childWindow);
 			childWindow.Show(_path);
 		}
 
 		private void MainWindow_OnClosed(object sender, EventArgs e)
 		{
-			foreach (var window in _windowList.Cast<TempWindow>())
+			foreach (var window in _windowList.Cast<VideoWindow>())
 			{
 				window.CloseChild();
 			}
+		}
+
+		private void OpenImageButton_OnClick(object sender, RoutedEventArgs e)
+		{
+			_path = PathImageTextBox.Text;
+			var childWindow = new ImageWindow();
+			_windowList.Add(childWindow);
+			childWindow.Show(_path);
 		}
 	}
 }
