@@ -19,10 +19,30 @@ CBaseOperation::~CBaseOperation()
 int CBaseOperation::GetFileDuration(PCHAR filename){
 	av_register_all();
 	AVFormatContext *fmtCtx = avformat_alloc_context();
+	AVPacket packet;
+	int64_t duration = 0;
+	av_init_packet(&packet);
 	if (avformat_open_input(&fmtCtx, filename, nullptr, nullptr) != 0){
 		return NULL;
 	}
-	auto duration = fmtCtx->duration * CONVERT_TIME_TO_MS / AV_TIME_BASE;
+	if (avformat_find_stream_info(fmtCtx, nullptr) < 0){		
+		return NULL;
+	}
+	auto videoStreamIndex = av_find_best_stream(fmtCtx, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
+	if (videoStreamIndex < 0){
+		return NULL;
+	}
+	auto codecCtx = fmtCtx->streams[videoStreamIndex]->codec;
+	if (avcodec_open2(codecCtx, avcodec_find_decoder(codecCtx->codec_id), nullptr) < 0){
+		return NULL;
+	}
+	while (!av_read_frame(fmtCtx, &packet))
+	{
+		duration = packet.pts;
+	}
+	duration += packet.duration* CONVERT_TIME_TO_MS / AV_TIME_BASE;
+	av_packet_unref(&packet);
+	av_free_packet(&packet);
 	avformat_close_input(&fmtCtx);
 	return duration;
 }

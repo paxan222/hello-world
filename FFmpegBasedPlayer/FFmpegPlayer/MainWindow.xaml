@@ -1,14 +1,43 @@
 ﻿<Window x:Class="FFmpegPlayer.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="MainWindow" Height="165" Width="525"
+        Title="MainWindow" Height="480" Width="640"
 		Closed="MainWindow_OnClosed">
-    <Grid >
-		<StackPanel>
-			<TextBox x:Name="PathTextBox"></TextBox>
-			<Button x:Name="OpenButton" Content="Open stream" Click="OpenButton_OnClick"></Button>
-			<TextBox x:Name="PathImageTextBox"/>
+	<Grid>
+		<Grid.ColumnDefinitions>
+			<ColumnDefinition></ColumnDefinition>
+			<ColumnDefinition></ColumnDefinition>
+		</Grid.ColumnDefinitions>
+		<Grid.RowDefinitions>
+			<RowDefinition></RowDefinition>
+			<RowDefinition></RowDefinition>
+		</Grid.RowDefinitions>
+		<StackPanel Grid.Column="0" Grid.Row="0">
+			<Label HorizontalAlignment="Center">Play stream/file</Label>
+			<TextBox x:Name="PathTextBox">D:/Shares/0/7.mkv</TextBox>
+			<Button x:Name="PlayStreamButton" Content="Play stream" Click="PlayStreamButton_OnClick"></Button>
+		</StackPanel>
+		<StackPanel Grid.Column="1" Grid.Row="0">
+			<Label HorizontalAlignment="Center">Open shot from stream/file</Label>
+			<TextBox x:Name="PathImageTextBox">D:/Shares/0/7.mkv</TextBox>
+			<TextBox x:Name="TimestampImageTextBox">3000</TextBox>
 			<Button x:Name="OpenImageButton" Content="Open image" Click="OpenImageButton_OnClick"/>
 		</StackPanel>
-    </Grid>
+		<StackPanel Grid.Column="0" Grid.Row="1">
+			<Label HorizontalAlignment="Center">Cut file</Label>
+			<TextBox x:Name="PathCutFileTextBox">D:\TestVideo\Export\17-03-17-08-57-33-429</TextBox>
+			<TextBox x:Name="PathCutResultTextBox">D:\TestVideo\Export\result.mkv</TextBox>
+			<TextBox x:Name="StartTimeTextBox">0</TextBox>
+			<TextBox x:Name="EndTimeTextBox">60000</TextBox>
+			<Button x:Name="StartCutButton" Content="StartCut" Click="StartCutButton_OnClick"/>
+		</StackPanel>
+		<StackPanel Grid.Column="1" Grid.Row="1">
+			<Label HorizontalAlignment="Center">Cut file</Label>
+			<TextBox x:Name="PathConcatenateFirtstFileTextBox">D:\TestVideo\Export\firstfile</TextBox>
+			<TextBox x:Name="PathConcatenateSecondFileTextBox">D:\TestVideo\Export\secondfile</TextBox>
+			<TextBox x:Name="PathConcatenateResultTextBox">D:\TestVideo\Export\result.mkv</TextBox>
+			<Button x:Name="StartConcatenateButton" Content="StartCut" Click="StartConcatenateButton_OnClick"/>
+		</StackPanel>
+		
+	</Grid>
 </Window>

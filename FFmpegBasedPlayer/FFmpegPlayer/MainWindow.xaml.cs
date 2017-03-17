@@ -1,18 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
+using System.Threading;
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Interop;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
-using RVI.NativePlayerWrap;
+using RtspExportWrap;
 
 namespace FFmpegPlayer
 {
@@ -24,18 +15,20 @@ namespace FFmpegPlayer
 		private string _path;
 		private IntPtr _hwnd;
 		private IntPtr _playerIntPtr;
-		private List<Window> _windowList = new List<Window>(); 
+		private List<Window> _windowList = new List<Window>();
 
 		public MainWindow()
 		{
 			InitializeComponent();
 		}
 
-		private void OpenButton_OnClick(object sender, RoutedEventArgs e)
+		private void PlayStreamButton_OnClick(object sender, RoutedEventArgs e)
 		{
 			_path = PathTextBox.Text;
 			var childWindow = new VideoWindow();
 			_windowList.Add(childWindow);
+			childWindow.Width = 640;
+			childWindow.Height = 480;
 			childWindow.Show(_path);
 		}
 
@@ -53,6 +46,18 @@ namespace FFmpegPlayer
 			var childWindow = new ImageWindow();
 			_windowList.Add(childWindow);
 			childWindow.Show(_path);
+		}
+
+		private void StartCutButton_OnClick(object sender, RoutedEventArgs e)
+		{
+			var startCutTime = Int32.Parse(StartTimeTextBox.Text);
+			var endCutTime = Int32.Parse(EndTimeTextBox.Text);
+			_playerIntPtr = RtspExport.Cut(PathCutFileTextBox.Text, PathCutResultTextBox.Text, startCutTime, endCutTime, null, null, null);
+		}
+
+		private void StartConcatenateButton_OnClick(object sender, RoutedEventArgs e)
+		{
+			_playerIntPtr = RtspExport.Concatenate(PathConcatenateFirtstFileTextBox.Text,PathConcatenateSecondFileTextBox.Text, PathConcatenateResultTextBox.Text, null, null, null);
 		}
 	}
 }

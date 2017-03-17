@@ -1,16 +1,8 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+using System.Diagnostics;
+using System.IO;
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
 using System.Windows.Interop;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Shapes;
 using RVI.NativePlayerWrap;
 
 namespace FFmpegPlayer
@@ -34,13 +26,24 @@ namespace FFmpegPlayer
 			IntPtr hwnd = wih.Handle;
 			_playerIntPtr = NativePlayer.GetRtspPlayer(path, null, null, null, 10000, hwnd);
 			if (_playerIntPtr != IntPtr.Zero)
+			{
+				ShowFfmpeg(path);
 				NativePlayer.Play(_playerIntPtr);
+			}
 			else
 			{
 				Close();
 			}
 		}
 
+		private void ShowFfmpeg(string path)
+		{
+			var pathffplay = String.Format("{0}\\{1}", Directory.GetCurrentDirectory(), "ffplay.exe");
+			var args = String.Format("-i \"{0}\" -rtsp_transport tcp -x 1280 -y 720", path);
+			var psi = new ProcessStartInfo(pathffplay, args);
+			Process.Start(psi);
+			
+		}
 		public void CloseChild()
 		{
 			if (_playerIntPtr != IntPtr.Zero)
@@ -60,6 +63,11 @@ namespace FFmpegPlayer
 				SwitchSound.Content = "Mute";
 				NativePlayer.SwitchSound(_playerIntPtr, true);
 			}
+		}
+		
+		private void VideoWindow_OnClosed(object sender, EventArgs e)
+		{
+			CloseChild();
 		}
 	}
 }

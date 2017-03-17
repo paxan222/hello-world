@@ -60,6 +60,9 @@ public:
 	//Cancel task
 	BOOL CancelTask();
 protected:
+	std::string m_firstInputFilename;
+	std::string m_secondInputFilename;
+	std::string m_outputFilename;
 	/*----------Input data--------------------------------------------*/
 	//Input format context
 	AVFormatContext	*m_inputFmtCtx{ nullptr };

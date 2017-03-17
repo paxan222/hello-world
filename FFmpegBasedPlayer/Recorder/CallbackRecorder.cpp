@@ -8,7 +8,7 @@ CCallbackRecorder::CCallbackRecorder(PCHAR rtspPath, int connectionTimeout,
 	m_RcvHdCb(fReceiveHeaderCallback)
 {
 	m_rtspPath = rtspPath;
-	m_connectionTimeout = connectionTimeout;
+	m_timeout = connectionTimeout;
 }
 
 CCallbackRecorder::~CCallbackRecorder()
@@ -22,7 +22,7 @@ BOOL CCallbackRecorder::Open(){
 			std::thread([this]{m_ErrCb(ErrorCode::RecievedCallbackIsNull); }).detach();
 		return FALSE;
 	}
-	if (!OpenInputStream((PCHAR)m_rtspPath.c_str(), m_connectionTimeout)){
+	if (!OpenInputStream((PCHAR)m_rtspPath.c_str(), m_timeout)){
 		if (m_ErrCb)
 			std::thread([this]{m_ErrCb(m_errorCode); }).detach();
 		return FALSE;

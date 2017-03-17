@@ -9,11 +9,73 @@
 #pragma warning(push)
 #pragma warning(disable: 4127)
 #ifdef _DEBUG
-#define DEBUG_MSG(str) do { std::cerr << str << std::endl; } while( false )
+#define DEBUG_MSG(str) do { std::clog << str << std::endl; } while( false )
 #else
 #define DEBUG_MSG(str) do { } while ( false )
 #endif
 #pragma warning(pop)
+
+CFFmpegPlayer::CFFmpegPlayer(PCHAR pchFileName,
+	FDecodeCallback fOnFrame,
+	FFileEndCallback fOnEof,
+	FEndInitCallback fOnInit,
+	FErrorCallback fOnError,
+	int timeout,
+	HWND h_MainWindow)
+	: CBasePlayer(pchFileName, fOnFrame, fOnEof, fOnInit, h_MainWindow)
+	, m_fileName(pchFileName)
+	, m_cbOnInit(fOnInit)
+	, m_cbOnFrame(fOnFrame)
+	, m_cbOnEof(fOnEof)
+{
+	m_cbOnError = fOnError;
+	m_timeout = timeout;
+	m_decoder.deleterPicture = [](AVPicture* pic)
+	{
+		avpicture_free(pic);
+		av_free(pic);
+	};
+}
+
+CFFmpegPlayer::~CFFmpegPlayer()
+{
+
+	m_quit = true;
+	m_paused = false;
+
+	try
+	{
+		m_decoder.qAudioFrames.Terminate();
+		m_decoder.qVideoFrames.Terminate();
+		m_decoder.qAudioPackets.Terminate();
+		m_decoder.qVideoPackets.Terminate();
+
+		while (m_decoder.demux_state == state::InProgress
+			|| m_decoder.aDecode_state == state::InProgress
+			|| m_decoder.vDecode_state == state::InProgress
+			|| m_rendererState == state::InProgress)
+		{
+			m_unpause.notify_all();
+			std::this_thread::sleep_for(std::chrono::milliseconds(10));
+		}
+	}
+	catch (...)
+	{
+		// swallow any exception in destructor
+	}
+	if (&m_resampleCtx != NULL)
+		swr_free(&m_resampleCtx);
+	if (m_audioCtx != NULL)
+		avcodec_close(m_audioCtx);
+	if (m_videoCtx != NULL)
+		avcodec_close(m_videoCtx);
+	if (&m_options != NULL)
+		av_dict_free(&m_options); // очищаем словарь
+	if (&m_fmtCtx != NULL)
+		avformat_close_input(&m_fmtCtx);
+}
+
+
 
 std::wstring StringToWString(const std::string& s)
 {
@@ -30,23 +92,24 @@ std::wstring StringToWString(const std::string& s)
 // Открытие файла с видео
 BOOL CFFmpegPlayer::Open()
 {
-	//av_log_set_level(AV_LOG_DEBUG);
+	std::lock_guard<std::recursive_mutex>lock_guard(m_lock);
+#ifdef _DEBUG
+	av_log_set_level(AV_LOG_VERBOSE);
+#else
+	av_log_set_level(AV_LOG_QUIET);
+#endif
 	class AVInitializer {
-		ULONG_PTR m_gdiplusToken;
 	public:
 		AVInitializer() {
 			av_register_all();
 			avformat_network_init();
-			Gdiplus::GdiplusStartupInput gdiplusStartupInput;
-			GdiplusStartup(&m_gdiplusToken, &gdiplusStartupInput, nullptr);
 		}
 		~AVInitializer() {
-			// ExitInstance
-			Gdiplus::GdiplusShutdown(m_gdiplusToken);
 			avformat_network_deinit();
 		}
 	};
 	static AVInitializer sAVInit;
+	static Logging log;
 
 	if (m_fileName.find("rtsp://") != std::string::npos)
 	{
@@ -84,6 +147,9 @@ BOOL CFFmpegPlayer::Init()
 		m_fmtCtx->interrupt_callback.opaque = this;
 		m_timeoutPrev = GetTickCount();
 	}
+	if (!av_dict_get(m_options, "scan_all_pmts", nullptr, AV_DICT_MATCH_CASE)) {
+		av_dict_set(&m_options, "scan_all_pmts", "1", AV_DICT_DONT_OVERWRITE);
+	}
 	if (avformat_open_input(&m_fmtCtx, m_fileName.c_str(), nullptr, &m_options))
 	{
 		auto ret = AVERROR(ENOMEM);
@@ -92,6 +158,7 @@ BOOL CFFmpegPlayer::Init()
 		_RPT1(0, "Open_Error:%s\n", err_buf);
 		return FALSE;
 	}
+	av_format_inject_global_side_data(m_fmtCtx);
 	if (0 > avformat_find_stream_info(m_fmtCtx, nullptr))
 		return FALSE;
 	av_dump_format(m_fmtCtx, 0, m_fileName.c_str(), 0);
@@ -249,6 +316,7 @@ BOOL CFFmpegPlayer::Init()
 
 BOOL CFFmpegPlayer::Play()
 {
+	std::lock_guard<std::recursive_mutex>lock_guard(m_lock);
 	DEBUG_MSG("Play");
 
 	if (!m_valid)
@@ -266,6 +334,7 @@ BOOL CFFmpegPlayer::Play()
 
 BOOL CFFmpegPlayer::Stop()
 {
+	std::lock_guard<std::recursive_mutex>lock_guard(m_lock);
 	DEBUG_MSG("Stop");
 
 	Pause();
@@ -387,14 +456,12 @@ void CFFmpegPlayer::streamsOpen()
 	if (hasVideo())
 	{
 		m_videoCtx = m_fmtCtx->streams[m_videoStreamIndex]->codec;
-
 		m_codecVideo = avcodec_find_decoder(m_videoCtx->codec_id);
 		if (m_codecVideo == nullptr){
 			if (m_cbOnError)
 				std::thread([this]{m_cbOnError("can't find video codec"); }).detach();
 		}
-
-		//m_videoCtx->refcounted_frames = 1;
+		m_videoCtx->refcounted_frames = 1;
 		if (avcodec_open2(m_videoCtx, m_codecVideo, nullptr)){
 			if (m_cbOnError)
 				std::thread([this]{m_cbOnError("can't open video codec"); }).detach();
@@ -410,7 +477,7 @@ void CFFmpegPlayer::streamsOpen()
 
 		m_pixFmt = &m_videoCtx->pix_fmt;
 
-		m_videoCtx->skip_frame = AVDISCARD_NONREF;
+		m_videoCtx->refs = 1;
 	}
 
 	if (hasAudio())
@@ -444,7 +511,7 @@ void CFFmpegPlayer::threadsCreate()
 		startDecoderVideo();
 	if (hasAudio())
 		startDecoderAudio();
-	startRenderer();
+	//startRenderer();
 }
 
 void CFFmpegPlayer::startDemuxer()
@@ -458,6 +525,8 @@ void CFFmpegPlayer::startDemuxer()
 			m_decoder.demux_state = state::InProgress;
 
 			Packet::Ptr aborted_pkt;
+			int iFrameCount = 0;
+			int defaultSize = DEMUXER_QUEUE_SIZE;
 			while (!m_quit)
 			{
 				std::unique_lock<decltype(m_pauseWorldMutex)> lk(m_pauseWorldMutex);
@@ -469,7 +538,6 @@ void CFFmpegPlayer::startDemuxer()
 				if (!aborted_pkt)
 				{
 					pkt = Packet::New();
-
 					m_timeout = 1000;
 					m_timeoutPrev = GetTickCount();
 					m_skipCheckTimeoutFlag = false;
@@ -480,7 +548,7 @@ void CFFmpegPlayer::startDemuxer()
 						auto errnum = AVERROR(ENOMEM);
 						char err_buf[255];
 						av_strerror(errnum, err_buf, sizeof(err_buf));
-						clog << "Error:%s\n" << err_buf;
+						clog << "Error:" << err_buf << "\n";
 						m_decoder.demux_state = state::Finished;
 						m_decoder.qVideoPackets.Abort();
 						m_decoder.qAudioPackets.Abort();
@@ -494,29 +562,44 @@ void CFFmpegPlayer::startDemuxer()
 
 				try
 				{
-					auto minAudio = m_decoder.qAudioPackets.Size() <= m_decoder.qVideoPackets.Size();
+					if (!m_startDecodeAndRender){
+						if (pkt->Raw()->flags == AV_PKT_FLAG_KEY ||
+							pkt->Raw()->flags == AV_PKT_FLAG_KEY + AV_PKT_FLAG_CORRUPT ||
+							pkt->Raw()->flags == AV_PKT_FLAG_KEY + AV_PKT_FLAG_CORRUPT + AV_PKT_FLAG_DISCARD)
+						{
+							m_startDecodeAndRender = iFrameCount > 0;
+							iFrameCount++;
+						}
+						if (m_decoder.qVideoPackets.Size() >= defaultSize - 5)
+						{
+							auto currentSize = m_decoder.qVideoPackets.Size();
+							defaultSize = currentSize + 50;
+							m_decoder.qVideoPackets.SetCapacity(defaultSize);
+							clog << "Demuxer Video: " << m_decoder.qVideoPackets.Size() << "\n";
+						}
+					}
+
+					/*auto minAudio = m_decoder.qAudioPackets.Size() <= m_decoder.qVideoPackets.Size();
 					auto capacityVideo = 0,
-						capacityAudio = 0;
+					capacityAudio = 0;
 					if (minAudio)
 					{
-						capacityAudio = QUEUE_SIZE_THRESH;
+					capacityAudio = QUEUE_SIZE_THRESH;
 					}
 					else
 					{
-						capacityVideo = QUEUE_SIZE_THRESH;
+					capacityVideo = QUEUE_SIZE_THRESH;
 					}
 
 					m_decoder.qAudioPackets.SetCapacity(capacityAudio);
-					m_decoder.qVideoPackets.SetCapacity(capacityVideo);
+					m_decoder.qVideoPackets.SetCapacity(capacityVideo);*/
 
-					//clog << "Audio: " << m_decoder.qAudioPackets.Size() << " "
-					//	<< "Video: " << m_decoder.qVideoPackets.Size() << "\n";
 
 					if (pkt->Raw()->stream_index == m_videoStreamIndex)
 					{
-
-						//clog << "PTS: " << pkt->Raw()->pts << "\n";
+						//_RPT1(0, "Demuxer_PTS: %i\n", pkt->Raw()->pts);
 						m_decoder.qVideoPackets.Push(std::move(pkt));
+						//_RPT0(0, "VPACKETPUSH\n");
 					}
 					else if (pkt->Raw()->stream_index == m_audioStreamIndex && IsAudioEnabled())
 					{
@@ -556,74 +639,69 @@ void CFFmpegPlayer::startDecoderVideo()
 
 		int frame_finished;
 		Decoder::PicturePtr /*aborted_pic,*/ pic;
-
 		m_decoder.vDecode_state = state::InProgress;
-
+		AVFrame *frame = av_frame_alloc();
+		auto StartTimePlayback = av_gettime_relative();
 		try
 		{
+			SDL_Init(SDL_INIT_VIDEO);
+			SDL_Window *screen = SDL_CreateWindowFrom(m_hMainWindow);
+			SDL_Renderer *sdlRenderer = SDL_CreateRenderer(screen, -1, 0);
+			SDL_Texture *sdlTexture = SDL_CreateTexture(sdlRenderer, SDL_PIXELFORMAT_YV12, SDL_TEXTUREACCESS_STATIC, m_videoCtx->width, m_videoCtx->height);
+
 			while (!m_quit)
 			{
-				auto frame = Frame::New();
+				if (m_startDecodeAndRender){
+					std::unique_lock<decltype(m_pauseMutex)> lk(m_pauseMutex);
+					m_unpause.wait(lk, [this] {
+						return !m_paused || m_oneShot;
+					});
+					if (m_seekPos >= 0)
+						seek();
 
-				if (m_decoder.qVideoPackets.Empty() && m_decoder.demux_state == state::Finished)
-					break;
+					if (m_decoder.qVideoPackets.Empty() && m_decoder.demux_state == state::Finished)
+					{
+						if (m_cbOnEof != nullptr){
+							_RPT1(0, "Disconnect!", 0);
+							m_cbOnEof();
+						}
+						break;
+					}
 
-				Packet::Ptr pkt;
-
-				try	{
-					pkt = m_decoder.qVideoPackets.Pop();
-				}
-				catch (const Queue::abort &)
-				{
-					continue;
-				}
-
-				if (!pkt){
-					if (m_cbOnError)
-						std::thread([this]{m_cbOnError("empty packet in video queue"); }).detach();
-				}
+					Packet::Ptr pkt;
 
 
-				auto ret = avcodec_decode_video2(m_videoCtx, frame->Raw(), &frame_finished, pkt->Raw());
-				if (ret < 0 && ret != AVERROR(EAGAIN) && ret != AVERROR_EOF){
 
-					auto errnum = AVERROR(ENOMEM);
-					char err_buf[255];
-					av_strerror(errnum, err_buf, sizeof(err_buf));
-					clog << "Error:%s\n" << err_buf;
-					break;
-				}
-				/*if (ret >= 0)
-					pkt->Raw()->size = 0;
-					ret = avcodec_receive_frame(m_videoCtx, frame->Raw());
+					try{
+						pkt = m_decoder.qVideoPackets.Pop();
+					}
+					catch (const Queue::abort &){
+						continue;
+					}
+
+					if (!pkt){
+						if (m_cbOnError)
+							std::thread([this]{m_cbOnError("empty packet in video queue"); }).detach();
+					}
+
+					auto startTime = av_gettime_relative();
+					auto ret = avcodec_decode_video2(m_videoCtx, frame, &frame_finished, pkt->Raw());
+
 					if (ret < 0 && ret != AVERROR(EAGAIN) && ret != AVERROR_EOF){
-					auto errnum = AVERROR(ENOMEM);
-					char err_buf[255];
-					av_strerror(errnum, err_buf, sizeof(err_buf));
-					clog << "Error:%s\n" << err_buf;
-					break;
+						auto errnum = AVERROR(ENOMEM);
+						char err_buf[255];
+						av_strerror(errnum, err_buf, sizeof(err_buf));
+						clog << "Error:%s\n" << err_buf;
+						break;
 					}
-					if (ret >= 0)
-					frame_finished = 1;*/
-				/*if (0 > avcodec_decode_video2(m_videoCtx, frame->Raw(), &frame_finished, pkt->Raw()))
-					throw std::exception("can't decode packet");*/
-
-				if (frame_finished)
-				{
-					try
-					{
-						//if (aborted_pic)
-						//	m_decoder.qVideoFrames.Push(std::move(aborted_pic));
-						//pic = convertColorSpace(std::move(frame));
-						//std::clog << "Video FRAME push" << std::endl;
-						m_decoder.qVideoFrames.Push(std::move(frame));
-					}
-					catch (const Queue::abort &)
-					{
-						//aborted_pic = std::move(pic);
+					if (frame_finished){
+						try{
+							Render(startTime, sdlTexture, sdlRenderer, frame);
+						}
+						catch (const Queue::abort &){
+						}
 					}
 				}
-
 			}
 		}
 		catch (const Queue::terminate &)
@@ -635,7 +713,7 @@ void CFFmpegPlayer::startDecoderVideo()
 			std::cerr << "An error occurred in video decoding thread: " << e.what() << std::endl;
 			std::abort();
 		}
-
+		_RPT1(0, "PlaybackTime: %i", ((av_gettime_relative() - StartTimePlayback) / AV_TIME_BASE));
 		if (m_quit)
 			m_decoder.vDecode_state = state::Interrupted;
 		else
@@ -694,7 +772,7 @@ void CFFmpegPlayer::startDecoderAudio()
 							frame = resampleAudio(std::move(frame));
 
 						auto msec = av_q2d(m_fmtCtx->streams[m_audioStreamIndex]->time_base) * 1000;
-						frame->Raw()->pkt_duration = av_frame_get_pkt_duration(frame->Raw()) * msec;
+						frame->Raw()->pkt_duration = av_frame_get_pkt_duration(frame->Raw()) * static_cast<int64_t>(msec);
 
 						//std::clog << "Audio FRAME push" << std::endl;
 						m_decoder.qAudioFrames.Push(std::move(frame));
@@ -714,6 +792,10 @@ void CFFmpegPlayer::startDecoderAudio()
 			std::cerr << "An error occurred in audio decoding thread: " << e.what() << std::endl;
 			std::abort();
 		}
+		if (hasAudio())
+			stopAudio();
+
+		SDL_CloseAudioDevice(m_audioDevice);
 
 		if (m_quit)
 			m_decoder.aDecode_state = state::Interrupted;
@@ -751,15 +833,27 @@ Frame::Ptr CFFmpegPlayer::resampleAudio(Frame::Ptr frame)
 	return resampled;
 }
 
+void CFFmpegPlayer::Render(int64_t startTime, SDL_Texture *sdlTexture, SDL_Renderer *sdlRenderer, AVFrame *frame)
+{
+	auto frameDuration = AV_TIME_BASE / av_q2d(av_guess_frame_rate(m_fmtCtx, m_fmtCtx->streams[m_videoStreamIndex], nullptr));
+	SDL_UpdateYUVTexture(sdlTexture, nullptr, frame->data[0], frame->linesize[0], frame->data[1], frame->linesize[1], frame->data[2], frame->linesize[2]);
+	SDL_RenderCopy(sdlRenderer, sdlTexture, nullptr, nullptr);
+	SDL_RenderPresent(sdlRenderer);
+	auto endRender = av_gettime_relative();
+	auto renderTime = static_cast<double>(endRender - startTime);
+	auto delay = frameDuration - renderTime;
+	if (delay > 0)
+		std::this_thread::sleep_for(std::chrono::microseconds(static_cast<int>(rint(delay))));
+}
+
 void CFFmpegPlayer::startRenderer()
 {
 	std::thread([this]()
 	{
 		DEBUG_MSG("Renderer started");
-
-		AVFrame* pFrame = nullptr;
 		int numBytes;
 		uint8_t* buffer = nullptr;
+		auto starttime = av_gettime_relative();
 		SwsContext* sws_context = nullptr;
 		try
 		{
@@ -770,38 +864,25 @@ void CFFmpegPlayer::startRenderer()
 			//int64_t drift{ 0 };
 			int64_t begin_ts{ 0 };
 
+			int count = 0;
 			// warm up the buffer
-			m_decoder.qVideoFrames.Wait(500);
-
+			while (m_decoder.qVideoFrames.Size() < DEMUXER_QUEUE_SIZE)
+			{
+				Sleep(50);
+				clog << "Waiting for buffer: " << count
+					<< " Size: " << m_decoder.qVideoFrames.Size() << "\n";
+				count++;
+			}
 			if (hasAudio()){
 				while (!m_decoder.syncInfo.audio_probe_ts && !m_quit)
 					std::this_thread::sleep_for(std::chrono::milliseconds(1));
 			}
 
-			pFrame = av_frame_alloc();
-			numBytes = avpicture_get_size(AV_PIX_FMT_RGB32, m_width,
-				m_height);
-			buffer = static_cast<uint8_t *>(av_malloc(numBytes*sizeof(uint8_t)));
+			SDL_Init(SDL_INIT_VIDEO);
+			SDL_Window *screen = SDL_CreateWindowFrom(m_hMainWindow);
+			SDL_Renderer *sdlRenderer = SDL_CreateRenderer(screen, -1, 0);
+			SDL_Texture *sdlTexture = SDL_CreateTexture(sdlRenderer, SDL_PIXELFORMAT_YV12, SDL_TEXTUREACCESS_STATIC, m_videoCtx->width, m_videoCtx->height);
 
-			AVPixelFormat pixFormat;
-			switch (m_videoCtx->pix_fmt) {
-				case AV_PIX_FMT_YUVJ420P:
-					pixFormat = AV_PIX_FMT_YUV420P;
-					break;
-				case AV_PIX_FMT_YUVJ422P:
-					pixFormat = AV_PIX_FMT_YUV422P;
-					break;
-				case AV_PIX_FMT_YUVJ444P:
-					pixFormat = AV_PIX_FMT_YUV444P;
-					break;
-				case AV_PIX_FMT_YUVJ440P:
-					pixFormat = AV_PIX_FMT_YUV440P;
-				default:
-					pixFormat = m_videoCtx->pix_fmt;
-					break;
-			}
-			sws_context = sws_getContext(m_width, m_height, pixFormat, m_width, m_height, AV_PIX_FMT_RGB32, SWS_BILINEAR, NULL, NULL, NULL);
-			avpicture_fill(reinterpret_cast<AVPicture *>(pFrame), buffer, AV_PIX_FMT_RGB32, m_width, m_height);
 			while (!m_quit)
 			{
 				begin_ts = av_gettime_relative();
@@ -826,50 +907,48 @@ void CFFmpegPlayer::startRenderer()
 						}
 						break;
 					}
-					Sleep(100);
 					continue;
 				}
 
 				Frame::Ptr frame;
 				try
 				{
+					/*if (m_decoder.qVideoFrames.Size()<20)
+					{
+					_RPT0(0, "Video frames size less than 20\n");
+					m_decoder.qVideoFrames.Wait(10);
+					continue;
+					}*/
 					frame = m_decoder.qVideoFrames.Pop();
+					clog << "Render Video: " << m_decoder.qVideoFrames.Size() << "\n";
+					//_RPT0(0, "VFRAMEPOP\n");
 				}
-				catch (const Queue::abort&){ continue; }
+				catch (const Queue::abort&)
+				{
+					_RPT0(0, "Abort Pop!\n");
+					continue;
+				}
 
 				if (!frame){
 					if (m_cbOnError)
 						std::thread([this]{m_cbOnError("empty frame"); }).detach();
 				}
 
-				RECT rect;	GetWindowRect(m_hMainWindow, &rect);
-				Gdiplus::Rect gdiRect;
-				gdiRect.X = 0;
-				gdiRect.Y = 0;
-				gdiRect.Width = abs(rect.right - rect.left);
-				gdiRect.Height = abs(rect.bottom - rect.top);
+				//_RPT1(0, "DELTA: %i", pic->pts - playback_video_ts);
+				playback_video_ts = frame->Raw()->pts;
 
-				auto pic = frame->Raw();
+				//_RPT1(0, "Render_PTS: %i\n", playback_video_ts);
 
-				playback_video_ts = pic->pts;
 
-				sws_scale(sws_context, static_cast<uint8_t const * const *>(pic->data), pic->linesize, 0, m_height, pFrame->data, pFrame->linesize);
-
-				Gdiplus::Image* img = new Gdiplus::Bitmap(pic->width, pic->height, pFrame->linesize[0], PixelFormat32bppRGB, pFrame->data[0]);
-
-				HDC wndHdc = GetDC(m_hMainWindow);
-
-				Gdiplus::Graphics graphics(wndHdc);
-				graphics.DrawImage(img, gdiRect);
-
-				ReleaseDC(m_hMainWindow, wndHdc);
-				delete img;
+				SDL_UpdateYUVTexture(sdlTexture, NULL, frame->Raw()->data[0], frame->Raw()->linesize[0], frame->Raw()->data[1], frame->Raw()->linesize[1], frame->Raw()->data[2], frame->Raw()->linesize[2]);
+				SDL_RenderCopy(sdlRenderer, sdlTexture, NULL, NULL);
+				SDL_RenderPresent(sdlRenderer);
 
 				auto end_ts = av_gettime_relative();
-
-				auto delay = (frame_q - (end_ts - begin_ts))/* * m_speedScaleFactor*/;
-				if (delay > 0)
-					std::this_thread::sleep_for(std::chrono::microseconds(static_cast<int>(rint(delay))));
+				auto render_ts = static_cast<double>(end_ts - begin_ts) / AV_TIME_BASE;
+				auto delay = (frame_q - render_ts)/* * m_speedScaleFactor*/;
+				//if (delay > 0)
+				//std::this_thread::sleep_for(std::chrono::microseconds(static_cast<int>(rint(delay))));
 				m_current_timestamp = playback_video_ts;
 			}
 			sws_freeContext(sws_context);
@@ -887,10 +966,10 @@ void CFFmpegPlayer::startRenderer()
 			stopAudio();
 
 		av_free(buffer);
-		av_free(pFrame);
 
 		SDL_CloseAudioDevice(m_audioDevice);
 
+		_RPT1(0, "Playback Time: %i", (av_gettime_relative() - starttime) / AV_TIME_BASE);
 
 		if (m_quit)
 			m_rendererState = state::Interrupted;

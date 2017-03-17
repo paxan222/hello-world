@@ -8,7 +8,7 @@ RTSPEXPORT_API PVOID WINAPI Cut(PCHAR inputFilename, PCHAR outputFilename, int s
 	return pTask;
 };
 
-RTSPEXPORT_API PVOID WINAPI Concatenate(PVOID exporter, PCHAR inputFilename, PCHAR inputFilename2, PCHAR outputFilename,
+RTSPEXPORT_API PVOID WINAPI Concatenate(PCHAR inputFilename, PCHAR inputFilename2, PCHAR outputFilename,
 	FProgressCallback fProgressCallback, FEndOfOperationCallback fEofCallback, FErrorCallback fErrorCallback){
 	CBaseOperation *pTask = new CConcatenateOperation(inputFilename, inputFilename2, outputFilename, fProgressCallback, fEofCallback, fErrorCallback);
 	return pTask;

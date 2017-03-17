@@ -2,11 +2,12 @@
 #include "BasePlayer.h"
 #include "Queue.h"
 #include <gdiplus.h>
+#include <fstream>
 
 class Frame	final
 {
 public:
-	using Ptr = std::unique_ptr < Frame > ;
+	using Ptr = std::unique_ptr < Frame >;
 
 	Frame() :
 		m_frame{ av_frame_alloc() }
@@ -40,7 +41,7 @@ private:
 class Packet final
 {
 public:
-	using Ptr = std::unique_ptr < Packet > ;
+	using Ptr = std::unique_ptr < Packet >;
 
 	Packet() :
 		m_packet{ static_cast<decltype(m_packet)>(av_malloc(sizeof(*m_packet))) }
@@ -76,7 +77,24 @@ private:
 	AVPacket *m_packet;
 };
 
+class Logging
+{
+	streambuf* savedBufferCLOG;
+	std::ofstream mylog;
+public:
+	Logging::Logging()
+	{
+		savedBufferCLOG = clog.rdbuf();
+		mylog.open("ffmpegplayer.txt");
+		clog.rdbuf(mylog.rdbuf());
+	}
 
+	Logging::~Logging()
+	{
+		clog.rdbuf(savedBufferCLOG);
+		mylog.close();
+	}
+};
 
 class CFFmpegPlayer : public CBasePlayer
 {
@@ -86,13 +104,13 @@ class CFFmpegPlayer : public CBasePlayer
 	const AVPixelFormat						m_dstPixFmt{ AV_PIX_FMT_YUV420P };
 	const AVSampleFormat					m_dstSndFmt{ AV_SAMPLE_FMT_S16 };
 	const Uint16							AUDIO_SAMPLES{ 1024 };
-	static const std::size_t				DEMUXER_QUEUE_SIZE{ 200 };
-	static const std::size_t				VIDEO_QUEUE_SIZE{ 30 };
+	static const std::size_t				DEMUXER_QUEUE_SIZE{ 10 };
+	static const std::size_t				VIDEO_QUEUE_SIZE{ 60 };
 	static const std::size_t				AUDIO_QUEUE_SIZE{ 60 };
-	static const std::size_t				QUEUE_SIZE_THRESH{ 3 };
+	static const std::size_t				QUEUE_SIZE_THRESH{ 20 };
 
 	std::string								m_fileName;
-
+	bool									m_startDecodeAndRender{ false };
 	AVFormatContext							*m_fmtCtx{ nullptr };
 	AVDictionary							*m_options{ NULL }; // словарь с опциями для поднятия rtp соединения
 	AVCodec									*m_codecAudio{ nullptr }, *m_codecVideo{ nullptr };
@@ -105,11 +123,12 @@ class CFFmpegPlayer : public CBasePlayer
 
 	//float									m_speedScaleFactor{ 1.0 };
 
-	SwrContext								*m_resampleCtx{nullptr};
+	SwrContext								*m_resampleCtx{ nullptr };
 
 	SDL_AudioSpec							m_audioSpec, m_audioDesiredSpec{};
 	SDL_AudioDeviceID						m_audioDevice;
 
+	std::recursive_mutex					m_lock;
 
 	enum class state
 	{
@@ -123,7 +142,7 @@ class CFFmpegPlayer : public CBasePlayer
 	{
 		std::function<void(AVPicture*)>		deleterPicture;
 
-		using PicturePtr = std::unique_ptr < AVPicture, decltype(deleterPicture) > ;
+		using PicturePtr = std::unique_ptr < AVPicture, decltype(deleterPicture) >;
 
 		Queue::ThreadSafe<Packet::Ptr>		qAudioPackets{ DEMUXER_QUEUE_SIZE };
 		Queue::ThreadSafe<Packet::Ptr>		qVideoPackets{ DEMUXER_QUEUE_SIZE };
@@ -169,64 +188,10 @@ class CFFmpegPlayer : public CBasePlayer
 	FErrorCallback							m_cbOnError;
 
 public:
-	CFFmpegPlayer(PCHAR pchFileName,
-		FDecodeCallback fOnFrame,
-		FFileEndCallback fOnEof,
-		FEndInitCallback fOnInit,
-		FErrorCallback fOnError,
-		int timeout,
-		HWND h_MainWindow)
-		: CBasePlayer(pchFileName, fOnFrame, fOnEof, fOnInit, h_MainWindow)
-		, m_fileName(pchFileName)
-		, m_cbOnInit(fOnInit)
-		, m_cbOnFrame(fOnFrame)
-		, m_cbOnEof(fOnEof)
-	{
-		m_cbOnError = fOnError;
-		m_timeout = timeout;
-		m_decoder.deleterPicture = [](AVPicture* pic)
-		{
-			avpicture_free(pic);
-			av_free(pic);
-		};
-	}
 
-	~CFFmpegPlayer()
-	{
-		m_quit = true;
-		m_paused = false;
+	CFFmpegPlayer(PCHAR pchFileName, FDecodeCallback fOnFrame, FFileEndCallback fOnEof, FEndInitCallback fOnInit, FErrorCallback fOnError, int timeout, HWND h_MainWindow);
 
-		try
-		{
-			m_decoder.qAudioFrames.Terminate();
-			m_decoder.qVideoFrames.Terminate();
-			m_decoder.qAudioPackets.Terminate();
-			m_decoder.qVideoPackets.Terminate();
-
-			while (m_decoder.demux_state == state::InProgress
-				|| m_decoder.aDecode_state == state::InProgress
-				|| m_decoder.vDecode_state == state::InProgress
-				|| m_rendererState == state::InProgress)
-			{
-				m_unpause.notify_all();
-				std::this_thread::sleep_for(std::chrono::milliseconds(10));
-			}
-		}
-		catch (...)
-		{
-			// swallow any exception in destructor
-		}
-		if (&m_resampleCtx != nullptr)
-			swr_free(&m_resampleCtx);
-		if (m_audioCtx != nullptr)
-			avcodec_close(m_audioCtx);
-		if (m_videoCtx != nullptr)
-			avcodec_close(m_videoCtx);
-		if (&m_options != nullptr)
-			av_dict_free(&m_options); // очищаем словарь
-		if (&m_fmtCtx != nullptr)
-			avformat_close_input(&m_fmtCtx);
-	}
+	~CFFmpegPlayer();
 
 	BOOL Open() override;
 
@@ -276,6 +241,8 @@ private:
 	void streamsOpen();
 
 	Frame::Ptr resampleAudio(Frame::Ptr frame);
+	void Render(int64_t startTime, SDL_Texture* sdlTexture, SDL_Renderer* sdlRenderer, AVFrame* frame);
+
 	Decoder::PicturePtr convertColorSpace(Frame::Ptr frame);
 
 	void threadsCreate();
@@ -302,7 +269,9 @@ private:
 	void startAudio();
 
 	BOOL Init();
+
 	static int Interrupt_cb(void *ctx);
+
 	BOOL InputData(BYTE* pBuf, DWORD dwSize) override;
 };
 

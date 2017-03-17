@@ -6,8 +6,11 @@
 CConcatenateOperation::CConcatenateOperation(PCHAR firstInputFilename, PCHAR secondInputFilename, PCHAR outputFilename,
 	FProgressCallback fProgressCallback, FEndOfOperationCallback fEofCallback, FErrorCallback fErrorCallback) :CBaseOperation()
 {
+	m_firstInputFilename = firstInputFilename;
+	m_secondInputFilename = secondInputFilename;
+	m_outputFilename = outputFilename;
 	std::thread([=]{
-		if (Init(firstInputFilename, secondInputFilename, outputFilename)){
+		if (Init(const_cast<PCHAR>(m_firstInputFilename.c_str()), const_cast<PCHAR>(m_secondInputFilename.c_str()), const_cast<PCHAR>(m_outputFilename.c_str()))){
 			AVPacket packet;
 			auto videoIndex = m_inputVideoStream->index;
 			auto audioIndex = m_inputAudioStream->index;
@@ -50,10 +53,17 @@ CConcatenateOperation::CConcatenateOperation(PCHAR firstInputFilename, PCHAR sec
 					av_free_packet(&packet);
 					av_init_packet(&packet);
 				}
+				int64_t videopts = -1;
+				int64_t audiopts = -1;
 				while (!av_read_frame(m_secondInputFmtCtx, &packet)){
 					//Recalculate pts, dts and duration		
 					if (packet.stream_index == videoIndex2)
 					{
+						if (videopts<0)
+						{
+							videopts = packet.pts;
+						}
+						packet.pts -= videopts;
 						RecalculateTimeStamps(&packet, m_secondInputVideoStream->time_base, outVideoStream->time_base, lastPts);
 						packet.stream_index = outVideoStream->index;
 						currentPts = packet.pts * CONVERT_TIME_TO_MS * av_q2d(outVideoStream->time_base);
@@ -63,6 +73,11 @@ CConcatenateOperation::CConcatenateOperation(PCHAR firstInputFilename, PCHAR sec
 					if (m_inputAudioStream != nullptr){
 						if (packet.stream_index == audioIndex2)
 						{
+							if (audiopts<0)
+							{
+								audiopts = packet.pts;
+							}
+							packet.pts -= audiopts;
 							RecalculateTimeStamps(&packet, m_secondInputAudioStream->time_base, outAudioStream->time_base, lastPts);
 							packet.stream_index = outAudioStream->index;
 							currentPts = packet.pts * CONVERT_TIME_TO_MS * av_q2d(outAudioStream->time_base);
@@ -104,6 +119,7 @@ CConcatenateOperation::~CConcatenateOperation()
 
 //Open input files -> Fill input streams => Open output file
 BOOL CConcatenateOperation::Init(PCHAR firstInputFilename, PCHAR secondInputFilename, PCHAR outputFilename){
+
 	if (firstInputFilename == "" || secondInputFilename == "" || outputFilename == ""){
 		m_errorCode = ErrorCode::EmptyFilename;
 		return FALSE;

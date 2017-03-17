@@ -16,7 +16,7 @@ BOOL CFileRecorder::Open(){
 			std::thread([this]{m_ErrCb(ErrorCode::EmptyFilename); }).detach();
 		return FALSE;
 	}
-	if (!OpenInputStream((PCHAR)m_rtspPath.c_str(), m_connectionTimeout)){
+	if (!OpenInputStream((PCHAR)m_rtspPath.c_str(), m_timeout)){
 		if (m_ErrCb)
 			std::thread([this]{m_ErrCb(m_errorCode); }).detach();
 		return FALSE;

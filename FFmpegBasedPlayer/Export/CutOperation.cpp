@@ -5,8 +5,10 @@
 CCutOperation::CCutOperation(PCHAR inputFilename, PCHAR outputFilename, int startTimeMilliseconds, int endTimeMilliseconds,
 	FProgressCallback fProgressCallback, FEndOfOperationCallback fEofCallback, FErrorCallback fErrorCallback) :CBaseOperation()
 {
+	m_firstInputFilename = inputFilename;
+	m_outputFilename = outputFilename;
 	std::thread([=]{
-		if (Init(inputFilename, outputFilename, startTimeMilliseconds, endTimeMilliseconds)){
+		if (Init(const_cast<PCHAR>(m_firstInputFilename.c_str()), const_cast<PCHAR>(m_outputFilename.c_str()), startTimeMilliseconds, endTimeMilliseconds)){
 			AVPacket packet;
 			AVStream *outVideoStream = m_outputFmtCtx->streams[m_outputVideoStreamIndex];
 			AVStream *outAudioStream = m_outputFmtCtx->streams[m_outputAudioStreamIndex];
@@ -104,7 +106,7 @@ BOOL CCutOperation::Init(PCHAR inputFilename, PCHAR outputFilename, int startTim
 	if (audioStreamIndex >= 0)
 		m_inputAudioStream = m_inputFmtCtx->streams[audioStreamIndex];
 
-	if (!CheckTimeConditions(startTimeMilliseconds, endTimeMilliseconds)){
+	if (!CheckTimeConditions(inputFilename, startTimeMilliseconds, &endTimeMilliseconds)){
 		m_errorCode = ErrorCode::ArgumentOutOfRange;
 		return FALSE;
 	}
@@ -128,10 +130,13 @@ void CCutOperation::CreateOutputStreams(AVFormatContext *outputFmtCtx){
 }
 
 // Calculate duration and deltaPts => Check start and end time is bigger than 0, less than duration and different between it is bigger than deltaPts
-BOOL CCutOperation::CheckTimeConditions(int startTime, int endTime){
-	auto duration = m_inputFmtCtx->duration * CONVERT_TIME_TO_MS / AV_TIME_BASE;
+BOOL CCutOperation::CheckTimeConditions(PCHAR inputFilename ,int startTime, int *endTime){
+	auto duration = GetFileDuration(inputFilename);
+	//auto duration = m_inputFmtCtx->duration * CONVERT_TIME_TO_MS / AV_TIME_BASE;
 	auto deltaPts = (m_inputVideoStream->time_base.den * m_inputVideoStream->r_frame_rate.den) / (m_inputVideoStream->time_base.num * m_inputVideoStream->r_frame_rate.num);
-	if (startTime < 0 || startTime > duration || endTime <0 || endTime >duration || startTime > endTime - deltaPts)
+	if (*endTime > duration)
+		*endTime = duration;
+	if (startTime < 0 || startTime > duration || *endTime < 0  || startTime > *endTime - deltaPts)
 	{
 		return FALSE;
 	}

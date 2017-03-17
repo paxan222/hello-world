@@ -27,7 +27,7 @@ extern "C" {
 
 class CBaseRecorder
 {
-	bool m_interrupDisable{ false };
+	bool m_skipCheckTimeoutFlag{ false };
 public:
 	/*
 	*	Constructor
@@ -89,7 +89,7 @@ protected:
 	//Time previous
 	unsigned long m_timePrev{ 0 };
 	//Connection timeout
-	int m_connectionTimeout{ 0 };
+	int m_timeout{ 0 };
 	/*---------------Output-Variables-------------------------*/
 	//Output format context
 	AVFormatContext *m_outputFmtCtx{ nullptr };
@@ -101,7 +101,6 @@ protected:
 	//Stop operation flag
 	bool m_stop{ false };
 	std::thread *m_write_thread{ nullptr };
-	HANDLE event{nullptr};
 	//Write header flag
 	bool m_writeHeader{ true };
 	//Error code for error callback;
