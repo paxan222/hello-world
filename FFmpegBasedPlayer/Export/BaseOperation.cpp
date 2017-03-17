@@ -38,9 +38,8 @@ int CBaseOperation::GetFileDuration(PCHAR filename){
 	}
 	while (!av_read_frame(fmtCtx, &packet))
 	{
-		duration = packet.pts;
+		duration += packet.duration;
 	}
-	duration += packet.duration* CONVERT_TIME_TO_MS / AV_TIME_BASE;
 	av_packet_unref(&packet);
 	av_free_packet(&packet);
 	avformat_close_input(&fmtCtx);

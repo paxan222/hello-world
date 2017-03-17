@@ -27,7 +27,7 @@ namespace FFmpegPlayer
 			_playerIntPtr = NativePlayer.GetRtspPlayer(path, null, null, null, 10000, hwnd);
 			if (_playerIntPtr != IntPtr.Zero)
 			{
-				ShowFfmpeg(path);
+				//ShowFfmpeg(path);
 				NativePlayer.Play(_playerIntPtr);
 			}
 			else

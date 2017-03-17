@@ -32,11 +32,11 @@
 			<Button x:Name="StartCutButton" Content="StartCut" Click="StartCutButton_OnClick"/>
 		</StackPanel>
 		<StackPanel Grid.Column="1" Grid.Row="1">
-			<Label HorizontalAlignment="Center">Cut file</Label>
+			<Label HorizontalAlignment="Center">Concatenate files</Label>
 			<TextBox x:Name="PathConcatenateFirtstFileTextBox">D:\TestVideo\Export\firstfile</TextBox>
 			<TextBox x:Name="PathConcatenateSecondFileTextBox">D:\TestVideo\Export\secondfile</TextBox>
 			<TextBox x:Name="PathConcatenateResultTextBox">D:\TestVideo\Export\result.mkv</TextBox>
-			<Button x:Name="StartConcatenateButton" Content="StartCut" Click="StartConcatenateButton_OnClick"/>
+			<Button x:Name="StartConcatenateButton" Content="StartConcatenate" Click="StartConcatenateButton_OnClick"/>
 		</StackPanel>
 		
 	</Grid>

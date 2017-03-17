@@ -648,7 +648,8 @@ void CFFmpegPlayer::startDecoderVideo()
 			SDL_Window *screen = SDL_CreateWindowFrom(m_hMainWindow);
 			SDL_Renderer *sdlRenderer = SDL_CreateRenderer(screen, -1, 0);
 			SDL_Texture *sdlTexture = SDL_CreateTexture(sdlRenderer, SDL_PIXELFORMAT_YV12, SDL_TEXTUREACCESS_STATIC, m_videoCtx->width, m_videoCtx->height);
-
+			int64_t lastPts = 0; 
+			int64_t currentPts = 0;
 			while (!m_quit)
 			{
 				if (m_startDecodeAndRender){
@@ -671,7 +672,6 @@ void CFFmpegPlayer::startDecoderVideo()
 					Packet::Ptr pkt;
 
 
-
 					try{
 						pkt = m_decoder.qVideoPackets.Pop();
 					}
@@ -685,6 +685,9 @@ void CFFmpegPlayer::startDecoderVideo()
 					}
 
 					auto startTime = av_gettime_relative();
+
+					currentPts = pkt->Raw()->pts;
+
 					auto ret = avcodec_decode_video2(m_videoCtx, frame, &frame_finished, pkt->Raw());
 
 					if (ret < 0 && ret != AVERROR(EAGAIN) && ret != AVERROR_EOF){
@@ -694,13 +697,32 @@ void CFFmpegPlayer::startDecoderVideo()
 						clog << "Error:%s\n" << err_buf;
 						break;
 					}
+					auto endTime = av_gettime_relative();
+					auto decoderTime = endTime - startTime;
+					auto some = av_q2d(m_fmtCtx->streams[m_videoStreamIndex]->time_base);
+					double diffPts = (currentPts - lastPts)* some * AV_TIME_BASE;
+					auto delay = diffPts - decoderTime;
+					delay = delay > 1000000 ? 0 : delay;
+					_RPT1(0, "DecTime: %i\n", decoderTime);
+					_RPT1(0, "Diff: %i\n", diffPts);
+					_RPT1(0, "Delay: %f\n", delay/1000.0);
 					if (frame_finished){
 						try{
+							if (delay > 0 && lastPts != 0){
+								auto currtime = av_gettime_relative();
+								while (true)
+								{
+									if (currtime - av_gettime_relative() >= delay)
+										break;
+								}
+							}
+								//SDL_Delay(delay / 1000);
 							Render(startTime, sdlTexture, sdlRenderer, frame);
 						}
 						catch (const Queue::abort &){
 						}
 					}
+					lastPts = currentPts;
 				}
 			}
 		}
@@ -835,15 +857,15 @@ Frame::Ptr CFFmpegPlayer::resampleAudio(Frame::Ptr frame)
 
 void CFFmpegPlayer::Render(int64_t startTime, SDL_Texture *sdlTexture, SDL_Renderer *sdlRenderer, AVFrame *frame)
 {
-	auto frameDuration = AV_TIME_BASE / av_q2d(av_guess_frame_rate(m_fmtCtx, m_fmtCtx->streams[m_videoStreamIndex], nullptr));
+	//auto frameDuration = AV_TIME_BASE / av_q2d(av_guess_frame_rate(m_fmtCtx, m_fmtCtx->streams[m_videoStreamIndex], nullptr));
 	SDL_UpdateYUVTexture(sdlTexture, nullptr, frame->data[0], frame->linesize[0], frame->data[1], frame->linesize[1], frame->data[2], frame->linesize[2]);
 	SDL_RenderCopy(sdlRenderer, sdlTexture, nullptr, nullptr);
 	SDL_RenderPresent(sdlRenderer);
-	auto endRender = av_gettime_relative();
-	auto renderTime = static_cast<double>(endRender - startTime);
-	auto delay = frameDuration - renderTime;
-	if (delay > 0)
-		std::this_thread::sleep_for(std::chrono::microseconds(static_cast<int>(rint(delay))));
+	//auto endRender = av_gettime_relative();
+	//auto renderTime = static_cast<double>(endRender - startTime);
+	//auto delay = frameDuration - renderTime;
+	//if (delay > 0)
+	//	std::this_thread::sleep_for(std::chrono::microseconds(static_cast<int>(rint(delay))));
 }
 
 void CFFmpegPlayer::startRenderer()
