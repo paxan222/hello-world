@@ -13,11 +13,17 @@ CCutOperation::CCutOperation(PCHAR inputFilename, PCHAR outputFilename, int star
 			AVStream *outVideoStream = m_outputFmtCtx->streams[m_outputVideoStreamIndex];
 			AVStream *outAudioStream = m_outputFmtCtx->streams[m_outputAudioStreamIndex];
 			int64_t currentPts = 0;
-
+			int64_t startVideoPts = -1;
+			int64_t startAudioPts = -1;
 			av_init_packet(&packet);
 			while (!av_read_frame(m_inputFmtCtx, &packet) && !m_cancel){
 				//Check packet stream index
 				if (packet.stream_index == m_inputVideoStream->index){
+					if (startVideoPts < 0)
+					{
+						startVideoPts = packet.pts;
+					}
+					packet.pts -= startVideoPts;
 					RecalculateTimeStamps(&packet, m_inputVideoStream->time_base, outVideoStream->time_base);
 					packet.stream_index = m_outputVideoStreamIndex;
 					currentPts = packet.pts * CONVERT_TIME_TO_MS * av_q2d(outVideoStream->time_base);
@@ -34,6 +40,11 @@ CCutOperation::CCutOperation(PCHAR inputFilename, PCHAR outputFilename, int star
 					if (m_inputAudioStream != nullptr){
 						if (packet.stream_index == m_inputAudioStream->index)
 						{
+							if (startAudioPts < 0)
+							{
+								startAudioPts = packet.pts;
+							}
+							packet.pts -= startAudioPts;
 							RecalculateTimeStamps(&packet, m_inputAudioStream->time_base, outAudioStream->time_base);
 							packet.stream_index = m_outputAudioStreamIndex;
 							currentPts = packet.pts * CONVERT_TIME_TO_MS * av_q2d(outAudioStream->time_base);

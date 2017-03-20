@@ -12,10 +12,6 @@ CConcatenateOperation::CConcatenateOperation(PCHAR firstInputFilename, PCHAR sec
 	std::thread([=]{
 		if (Init(const_cast<PCHAR>(m_firstInputFilename.c_str()), const_cast<PCHAR>(m_secondInputFilename.c_str()), const_cast<PCHAR>(m_outputFilename.c_str()))){
 			AVPacket packet;
-			auto videoIndex = m_inputVideoStream->index;
-			auto audioIndex = m_inputAudioStream->index;
-			auto videoIndex2 = m_secondInputVideoStream->index;
-			auto audioIndex2 = m_secondInputAudioStream->index;
 			AVStream *outVideoStream = m_outputFmtCtx->streams[m_outputVideoStreamIndex];
 			AVStream *outAudioStream = m_outputFmtCtx->streams[m_outputAudioStreamIndex];
 			int64_t lastPts = 0; // last pts for first input file
@@ -26,7 +22,7 @@ CConcatenateOperation::CConcatenateOperation(PCHAR firstInputFilename, PCHAR sec
 				av_init_packet(&packet);
 				//read First
 				while (!av_read_frame(m_inputFmtCtx, &packet)){
-					if (packet.stream_index == videoIndex)
+					if (packet.stream_index == m_inputVideoStream->index)
 					{
 						//Recalculate pts, dts and duration
 						RecalculateTimeStamps(&packet, m_inputVideoStream->time_base, outVideoStream->time_base);
@@ -37,7 +33,7 @@ CConcatenateOperation::CConcatenateOperation(PCHAR firstInputFilename, PCHAR sec
 						av_write_frame(m_outputFmtCtx, &packet);
 					}
 					if (m_inputAudioStream != nullptr){
-						if (packet.stream_index == audioIndex)
+						if (packet.stream_index == m_inputAudioStream->index)
 						{
 							RecalculateTimeStamps(&packet, m_inputAudioStream->time_base, outAudioStream->time_base);
 							packet.stream_index = outAudioStream->index;
@@ -57,7 +53,7 @@ CConcatenateOperation::CConcatenateOperation(PCHAR firstInputFilename, PCHAR sec
 				int64_t audiopts = -1;
 				while (!av_read_frame(m_secondInputFmtCtx, &packet)){
 					//Recalculate pts, dts and duration		
-					if (packet.stream_index == videoIndex2)
+					if (packet.stream_index == m_secondInputVideoStream->index)
 					{
 						if (videopts<0)
 						{
@@ -71,7 +67,7 @@ CConcatenateOperation::CConcatenateOperation(PCHAR firstInputFilename, PCHAR sec
 						av_write_frame(m_outputFmtCtx, &packet);
 					}
 					if (m_inputAudioStream != nullptr){
-						if (packet.stream_index == audioIndex2)
+						if (packet.stream_index == m_secondInputAudioStream->index)
 						{
 							if (audiopts<0)
 							{

@@ -33,7 +33,7 @@ namespace RVI.RtspRecorderWrap
 		/// <summary>
 		/// Путь к библиотеке с модулем записи
 		/// </summary>
-		private const string RTSP_RECORDER_DLL_NAME = @"\Dll\RVI.RtspRecorder.dll";
+		private const string RTSP_RECORDER_DLL_NAME = @"\Dll\Recorder.dll";
 
 		/// <summary>
 		/// Старт получения данных по rtsp

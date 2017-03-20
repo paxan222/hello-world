@@ -1,9 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
-using System.Threading;
+using System.Runtime.InteropServices;
+using System.Text;
+using System.Threading.Tasks;
 using System.Windows;
 using RtspExportWrap;
+using RVI.RtspRecorderWrap;
 
 namespace FFmpegPlayer
 {
@@ -16,7 +20,11 @@ namespace FFmpegPlayer
 		private IntPtr _hwnd;
 		private IntPtr _playerIntPtr;
 		private List<Window> _windowList = new List<Window>();
-
+		private RtspRecorder.RecieveDataCallback _recieveDataCallback;
+		private RtspRecorder.ErrorCallback _errorCallback;
+		private int _count = 1;
+		private string _rtspPath;
+		private bool _isHeaderCall = false;
 		public MainWindow()
 		{
 			InitializeComponent();
@@ -57,7 +65,66 @@ namespace FFmpegPlayer
 
 		private void StartConcatenateButton_OnClick(object sender, RoutedEventArgs e)
 		{
-			_playerIntPtr = RtspExport.Concatenate(PathConcatenateFirtstFileTextBox.Text,PathConcatenateSecondFileTextBox.Text, PathConcatenateResultTextBox.Text, null, null, null);
+			_playerIntPtr = RtspExport.Concatenate(PathConcatenateFirtstFileTextBox.Text, PathConcatenateSecondFileTextBox.Text, PathConcatenateResultTextBox.Text, null, null, null);
+		}
+
+		private void RecordStreamButton_OnClick(object sender, RoutedEventArgs e)
+		{
+			_rtspPath = PathRecordTextBox.Text;
+			_recieveDataCallback += RecieveDataCallback;
+			_errorCallback += ErrorCallback;
+			RtspRecorder.StartCallbackRecord(_rtspPath, 10000, _recieveDataCallback, null, _errorCallback);
+		}
+
+		private FileStream fsStream;
+		private BinaryWriter writer;
+		private void RecieveDataCallback(IntPtr buf, int bufSize, bool isHeaderData)
+		{
+			var bytes = new byte[bufSize];
+			Marshal.Copy(buf, bytes, 0, bufSize);
+			var dir = string.Format("{0}\\RecordFiles", Directory.GetCurrentDirectory());
+
+			if (!Directory.Exists(dir))
+				Directory.CreateDirectory(dir);
+			if (isHeaderData)
+			{
+				if (writer != null)
+				{
+					writer.Close();
+					if(fsStream!=null)
+						fsStream.Close();
+				}
+				_path = string.Format("{0}\\recordFile{1}.mkv", dir, _count);
+				fsStream = new FileStream(_path, FileMode.Append);
+				writer = new BinaryWriter(fsStream, Encoding.UTF8);
+				_count++;
+				_isHeaderCall = false;
+			}
+			if (_path != string.Empty)
+			{
+				writer.Write(bytes);
+			}
+			var fi = new FileInfo(_path);
+			if (fi.Length > 10000000 && !_isHeaderCall)
+			{
+				RtspRecorder.WriteHeader(_rtspPath);
+				_isHeaderCall = true;
+			}
+		}
+		private void ErrorCallback(ErrorCode errorCode)
+		{
+			Console.WriteLine("ErrorCode:{0}", errorCode);
+		}
+
+		private void StopRecordStreamButton_OnClick(object sender, RoutedEventArgs e)
+		{
+			RtspRecorder.Stop(_rtspPath);
+			if (writer != null)
+			{
+				writer.Close();
+				if (fsStream != null)
+					fsStream.Close();
+			}
 		}
 	}
 }

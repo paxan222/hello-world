@@ -12,11 +12,23 @@
 			<RowDefinition></RowDefinition>
 			<RowDefinition></RowDefinition>
 		</Grid.RowDefinitions>
-		<StackPanel Grid.Column="0" Grid.Row="0">
-			<Label HorizontalAlignment="Center">Play stream/file</Label>
-			<TextBox x:Name="PathTextBox">D:/Shares/0/7.mkv</TextBox>
-			<Button x:Name="PlayStreamButton" Content="Play stream" Click="PlayStreamButton_OnClick"></Button>
-		</StackPanel>
+		<Grid Grid.Column="0" Grid.Row="0">
+			<Grid.RowDefinitions>
+				<RowDefinition></RowDefinition>
+				<RowDefinition></RowDefinition>
+			</Grid.RowDefinitions>
+			<StackPanel Grid.Row="0">
+				<Label HorizontalAlignment="Center">Play stream/file</Label>
+				<TextBox x:Name="PathTextBox">D:/Shares/0/7.mkv</TextBox>
+				<Button x:Name="PlayStreamButton" Content="Play stream" Click="PlayStreamButton_OnClick"></Button>
+			</StackPanel>
+			<StackPanel Grid.Row="1">
+				<Label HorizontalAlignment="Center">Record stream</Label>
+				<TextBox x:Name="PathRecordTextBox">D:/Shares/0/7.mkv</TextBox>
+				<Button x:Name="StartRecordStreamButton" Content="Start record stream" Click="RecordStreamButton_OnClick"></Button>
+				<Button x:Name="StopRecordStreamButton" Content="Stop record stream" Click="StopRecordStreamButton_OnClick"/>
+			</StackPanel>
+		</Grid>
 		<StackPanel Grid.Column="1" Grid.Row="0">
 			<Label HorizontalAlignment="Center">Open shot from stream/file</Label>
 			<TextBox x:Name="PathImageTextBox">D:/Shares/0/7.mkv</TextBox>
@@ -38,6 +50,6 @@
 			<TextBox x:Name="PathConcatenateResultTextBox">D:\TestVideo\Export\result.mkv</TextBox>
 			<Button x:Name="StartConcatenateButton" Content="StartConcatenate" Click="StartConcatenateButton_OnClick"/>
 		</StackPanel>
-		
+
 	</Grid>
 </Window>

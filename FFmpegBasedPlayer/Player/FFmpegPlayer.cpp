@@ -670,8 +670,7 @@ void CFFmpegPlayer::startDecoderVideo()
 					}
 
 					Packet::Ptr pkt;
-
-
+					
 					try{
 						pkt = m_decoder.qVideoPackets.Pop();
 					}
@@ -686,9 +685,9 @@ void CFFmpegPlayer::startDecoderVideo()
 
 					auto startTime = av_gettime_relative();
 
-					currentPts = pkt->Raw()->pts;
-
 					auto ret = avcodec_decode_video2(m_videoCtx, frame, &frame_finished, pkt->Raw());
+
+					currentPts = frame->pts;
 
 					if (ret < 0 && ret != AVERROR(EAGAIN) && ret != AVERROR_EOF){
 						auto errnum = AVERROR(ENOMEM);
@@ -701,22 +700,19 @@ void CFFmpegPlayer::startDecoderVideo()
 					auto decoderTime = endTime - startTime;
 					auto some = av_q2d(m_fmtCtx->streams[m_videoStreamIndex]->time_base);
 					double diffPts = (currentPts - lastPts)* some * AV_TIME_BASE;
-					auto delay = diffPts - decoderTime;
-					delay = delay > 1000000 ? 0 : delay;
-					_RPT1(0, "DecTime: %i\n", decoderTime);
+					auto delay = (diffPts - decoderTime)/1000; // convert to miliseconds
+					if (delay > 1000)
+						delay = 0;
+					_RPT1(0, "CurrentPts: %i\n", currentPts);
+					_RPT1(0, "LastPts: %i\n", lastPts);
+					/*_RPT1(0, "DecTime: %i\n", decoderTime);
 					_RPT1(0, "Diff: %i\n", diffPts);
-					_RPT1(0, "Delay: %f\n", delay/1000.0);
+					_RPT1(0, "Delay: %f\n", delay);*/
 					if (frame_finished){
 						try{
 							if (delay > 0 && lastPts != 0){
-								auto currtime = av_gettime_relative();
-								while (true)
-								{
-									if (currtime - av_gettime_relative() >= delay)
-										break;
-								}
+								SDL_Delay(delay);
 							}
-								//SDL_Delay(delay / 1000);
 							Render(startTime, sdlTexture, sdlRenderer, frame);
 						}
 						catch (const Queue::abort &){

@@ -114,6 +114,10 @@
       <Project>{2D1A57CE-E5AF-415C-A0B6-C21A1A83C17D}</Project>
       <Name>PlayerWrap</Name>
     </ProjectReference>
+    <ProjectReference Include="..\RecorderWrap\RecorderWrap.csproj">
+      <Project>{D3B113BE-4507-456B-969C-AFA4CC5B5926}</Project>
+      <Name>RecorderWrap</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
