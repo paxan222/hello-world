@@ -57,6 +57,12 @@
     <Compile Include="ImageWindow.xaml.cs">
       <DependentUpon>ImageWindow.xaml</DependentUpon>
     </Compile>
+    <Compile Include="Player.xaml.cs">
+      <DependentUpon>Player.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="VideoControls.xaml.cs">
+      <DependentUpon>VideoControls.xaml</DependentUpon>
+    </Compile>
     <Compile Include="VideoWindow.xaml.cs">
       <DependentUpon>VideoWindow.xaml</DependentUpon>
     </Compile>
@@ -76,6 +82,14 @@
       <DependentUpon>MainWindow.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
+    <Page Include="Player.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="VideoControls.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
     <Page Include="VideoWindow.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
@@ -109,6 +123,10 @@
     <ProjectReference Include="..\ExportWrap\ExportWrap.csproj">
       <Project>{7B9AF862-B50F-47BD-956F-FFAE38C62BE6}</Project>
       <Name>ExportWrap</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\PlayerSdlWrap\PlayerSdlWrap.csproj">
+      <Project>{62347349-86A1-4D9B-BA53-FAFF552CE387}</Project>
+      <Name>PlayerSdlWrap</Name>
     </ProjectReference>
     <ProjectReference Include="..\PlayerWrap\PlayerWrap.csproj">
       <Project>{2D1A57CE-E5AF-415C-A0B6-C21A1A83C17D}</Project>

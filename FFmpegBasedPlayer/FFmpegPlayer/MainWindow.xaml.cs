@@ -2,9 +2,6 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows;
 using RtspExportWrap;
 using RVI.RtspRecorderWrap;
@@ -73,42 +70,50 @@ namespace FFmpegPlayer
 			_rtspPath = PathRecordTextBox.Text;
 			_recieveDataCallback += RecieveDataCallback;
 			_errorCallback += ErrorCallback;
-			RtspRecorder.StartCallbackRecord(_rtspPath, 10000, _recieveDataCallback, null, _errorCallback);
+			RtspRecorder.StartCallbackRecord(_rtspPath, 0, _recieveDataCallback, null, _errorCallback);
 		}
 
 		private FileStream fsStream;
 		private BinaryWriter writer;
+		private int _fileSize = 0;
 		private void RecieveDataCallback(IntPtr buf, int bufSize, bool isHeaderData)
 		{
-			var bytes = new byte[bufSize];
-			Marshal.Copy(buf, bytes, 0, bufSize);
-			var dir = string.Format("{0}\\RecordFiles", Directory.GetCurrentDirectory());
+			//var bytes = new byte[bufSize];
+			//Marshal.Copy(buf, bytes, 0, bufSize);
+			//var dir = string.Format("{0}\\RecordFiles", Directory.GetCurrentDirectory());
 
-			if (!Directory.Exists(dir))
-				Directory.CreateDirectory(dir);
+			//if (!Directory.Exists(dir))
+			//	Directory.CreateDirectory(dir);
 			if (isHeaderData)
 			{
-				if (writer != null)
-				{
-					writer.Close();
-					if(fsStream!=null)
-						fsStream.Close();
-				}
-				_path = string.Format("{0}\\recordFile{1}.mkv", dir, _count);
-				fsStream = new FileStream(_path, FileMode.Append);
-				writer = new BinaryWriter(fsStream, Encoding.UTF8);
-				_count++;
+				//if (writer != null)
+				//{
+				//	writer.Close();
+				//	if (fsStream != null)
+				//		fsStream.Close();
+				//}
+				//_path = string.Format("{0}\\recordFile{1}.mkv", dir, _count);
+				//fsStream = new FileStream(_path, FileMode.Append);
+				//writer = new BinaryWriter(fsStream, Encoding.UTF8);
+				//_count++;
 				_isHeaderCall = false;
 			}
-			if (_path != string.Empty)
-			{
-				writer.Write(bytes);
-			}
-			var fi = new FileInfo(_path);
-			if (fi.Length > 10000000 && !_isHeaderCall)
+			//if (_path != string.Empty)
+			//{
+			//	writer.Write(bytes);
+			//}
+			//var fi = new FileInfo(_path);
+			//if (fi.Length > 1000000 && !_isHeaderCall)
+			//{
+			//	RtspRecorder.WriteHeader(_rtspPath);
+			//	_isHeaderCall = true;
+			//}
+			_fileSize += bufSize;
+			if (_fileSize > 1000000 && !_isHeaderCall)
 			{
 				RtspRecorder.WriteHeader(_rtspPath);
 				_isHeaderCall = true;
+				_fileSize = 0;
 			}
 		}
 		private void ErrorCallback(ErrorCode errorCode)

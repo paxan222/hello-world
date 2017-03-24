@@ -4,11 +4,11 @@
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{D3B113BE-4507-456B-969C-AFA4CC5B5926}</ProjectGuid>
+    <ProjectGuid>{62347349-86A1-4D9B-BA53-FAFF552CE387}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>RecorderWrap</RootNamespace>
-    <AssemblyName>RecorderWrap</AssemblyName>
+    <RootNamespace>PlayerSdlWrap</RootNamespace>
+    <AssemblyName>PlayerSdlWrap</AssemblyName>
     <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
   </PropertyGroup>
@@ -16,12 +16,11 @@
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
-    <OutputPath>bin\x86\Debug\</OutputPath>
+    <OutputPath>bin\Debug\</OutputPath>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <PlatformTarget>x86</PlatformTarget>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
@@ -30,7 +29,6 @@
     <DefineConstants>TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
-    <PlatformTarget>x86</PlatformTarget>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
@@ -42,24 +40,23 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="ErrorCode.cs" />
-    <Compile Include="RtspRecorder.cs" />
+    <Compile Include="PlayerSdl.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup />
   <ItemGroup>
-    <Content Include="Dll\Recorder.dll">
+    <Content Include="Dll\PlayerSDL.dll">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
-    <Content Include="Dll\Recorder.pdb">
+    <Content Include="Dll\PlayerSDL.pdb">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
-    <PreBuildEvent>"$(MSBuildBinPath)\msbuild.exe" $(SolutionDir)Recorder\Recorder.vcxproj  /p:SolutionDir=$(SolutionDir) /p:Configuration=$(ConfigurationName) /p:Platform=$(PlatformTarget)
-xcopy /Y "$(SolutionDir)Recorder\bin\$(PlatformTarget)\$(ConfigurationName)\Recorder.dll" "$(ProjectDir)Dll\"
-xcopy /Y "$(SolutionDir)Recorder\bin\$(PlatformTarget)\$(ConfigurationName)\Recorder.pdb" "$(ProjectDir)Dll\"</PreBuildEvent>
+    <PreBuildEvent>"$(MSBuildBinPath)\msbuild.exe" $(SolutionDir)PlayerSdl\PlayerSdl.vcxproj  /p:SolutionDir=$(SolutionDir) /p:Configuration=$(ConfigurationName) /p:Platform=$(PlatformTarget)
+xcopy /Y "$(SolutionDir)PlayerSdl\bin\$(PlatformTarget)\$(ConfigurationName)\PlayerSdl.dll" "$(ProjectDir)Dll\"
+xcopy /Y "$(SolutionDir)PlayerSdl\bin\$(PlatformTarget)\$(ConfigurationName)\PlayerSdl.pdb" "$(ProjectDir)Dll\"</PreBuildEvent>
   </PropertyGroup>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.

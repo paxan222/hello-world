@@ -3,7 +3,6 @@
 
 // Calculate actual buffer size keeping in mind not cause too frequent audio callbacks
 #define SDL_AUDIO_MAX_CALLBACKS_PER_SEC 30;
-
 #pragma comment(lib, "SDL2")
 
 #pragma warning(push)
@@ -73,6 +72,8 @@ CFFmpegPlayer::~CFFmpegPlayer()
 		av_dict_free(&m_options); // очищаем словарь
 	if (&m_fmtCtx != NULL)
 		avformat_close_input(&m_fmtCtx);
+	SDL_Quit();
+
 }
 
 
@@ -94,7 +95,7 @@ BOOL CFFmpegPlayer::Open()
 {
 	std::lock_guard<std::recursive_mutex>lock_guard(m_lock);
 #ifdef _DEBUG
-	av_log_set_level(AV_LOG_VERBOSE);
+	//av_log_set_level(AV_LOG_TRACE);
 #else
 	av_log_set_level(AV_LOG_QUIET);
 #endif
@@ -188,12 +189,11 @@ BOOL CFFmpegPlayer::Init()
 	}
 
 	m_audioDesiredSpec.silence = 0;
-	m_audioDesiredSpec.format = AUDIO_S16SYS;
-	m_audioDesiredSpec.samples = m_audioDesiredSpec.freq / SDL_AUDIO_MAX_CALLBACKS_PER_SEC;
+	m_audioDesiredSpec.format = AUDIO_S16LSB;
+	m_audioDesiredSpec.samples = 1024;//m_audioDesiredSpec.freq / SDL_AUDIO_MAX_CALLBACKS_PER_SEC;
 	m_audioDesiredSpec.userdata = this;
 	m_audioDesiredSpec.callback = [](void* userdata, Uint8* stream, int want_bytes)
 	{
-		//want_bytes = len
 		static int64_t begin_ts;
 		auto last_frame = begin_ts;
 		begin_ts = av_gettime_relative();
@@ -369,7 +369,8 @@ BOOL CFFmpegPlayer::Pause()
 
 BOOL CFFmpegPlayer::SwitchSound(BOOL bIsSoundSwitchedOn)
 {
-	m_decoder.audioSilent = !bIsSoundSwitchedOn;
+	if (hasAudio())
+		m_decoder.audioSilent = !bIsSoundSwitchedOn;
 	return TRUE;
 }
 
@@ -511,7 +512,6 @@ void CFFmpegPlayer::threadsCreate()
 		startDecoderVideo();
 	if (hasAudio())
 		startDecoderAudio();
-	//startRenderer();
 }
 
 void CFFmpegPlayer::startDemuxer()
@@ -562,12 +562,12 @@ void CFFmpegPlayer::startDemuxer()
 
 				try
 				{
-					if (!m_startDecodeAndRender){
+					if (!m_startDecode){
 						if (pkt->Raw()->flags == AV_PKT_FLAG_KEY ||
 							pkt->Raw()->flags == AV_PKT_FLAG_KEY + AV_PKT_FLAG_CORRUPT ||
 							pkt->Raw()->flags == AV_PKT_FLAG_KEY + AV_PKT_FLAG_CORRUPT + AV_PKT_FLAG_DISCARD)
 						{
-							m_startDecodeAndRender = iFrameCount > 0;
+							m_startDecode = iFrameCount > 1;
 							iFrameCount++;
 						}
 						if (m_decoder.qVideoPackets.Size() >= defaultSize - 5)
@@ -578,22 +578,6 @@ void CFFmpegPlayer::startDemuxer()
 							clog << "Demuxer Video: " << m_decoder.qVideoPackets.Size() << "\n";
 						}
 					}
-
-					/*auto minAudio = m_decoder.qAudioPackets.Size() <= m_decoder.qVideoPackets.Size();
-					auto capacityVideo = 0,
-					capacityAudio = 0;
-					if (minAudio)
-					{
-					capacityAudio = QUEUE_SIZE_THRESH;
-					}
-					else
-					{
-					capacityVideo = QUEUE_SIZE_THRESH;
-					}
-
-					m_decoder.qAudioPackets.SetCapacity(capacityAudio);
-					m_decoder.qVideoPackets.SetCapacity(capacityVideo);*/
-
 
 					if (pkt->Raw()->stream_index == m_videoStreamIndex)
 					{
@@ -648,15 +632,15 @@ void CFFmpegPlayer::startDecoderVideo()
 			SDL_Window *screen = SDL_CreateWindowFrom(m_hMainWindow);
 			SDL_Renderer *sdlRenderer = SDL_CreateRenderer(screen, -1, 0);
 			SDL_Texture *sdlTexture = SDL_CreateTexture(sdlRenderer, SDL_PIXELFORMAT_YV12, SDL_TEXTUREACCESS_STATIC, m_videoCtx->width, m_videoCtx->height);
-			int64_t lastPts = 0; 
+			int64_t lastPts = 0;
 			int64_t currentPts = 0;
 			while (!m_quit)
 			{
-				if (m_startDecodeAndRender){
-					std::unique_lock<decltype(m_pauseMutex)> lk(m_pauseMutex);
+				if (m_startDecode){
+					/*std::unique_lock<decltype(m_pauseMutex)> lk(m_pauseMutex);
 					m_unpause.wait(lk, [this] {
-						return !m_paused || m_oneShot;
-					});
+					return !m_paused || m_oneShot;
+					});*/
 					if (m_seekPos >= 0)
 						seek();
 
@@ -670,7 +654,7 @@ void CFFmpegPlayer::startDecoderVideo()
 					}
 
 					Packet::Ptr pkt;
-					
+
 					try{
 						pkt = m_decoder.qVideoPackets.Pop();
 					}
@@ -688,7 +672,7 @@ void CFFmpegPlayer::startDecoderVideo()
 					auto ret = avcodec_decode_video2(m_videoCtx, frame, &frame_finished, pkt->Raw());
 
 					currentPts = frame->pts;
-
+					_RPT1(0, "VideoPts: %i\n", frame->pts);
 					if (ret < 0 && ret != AVERROR(EAGAIN) && ret != AVERROR_EOF){
 						auto errnum = AVERROR(ENOMEM);
 						char err_buf[255];
@@ -700,17 +684,17 @@ void CFFmpegPlayer::startDecoderVideo()
 					auto decoderTime = endTime - startTime;
 					auto some = av_q2d(m_fmtCtx->streams[m_videoStreamIndex]->time_base);
 					double diffPts = (currentPts - lastPts)* some * AV_TIME_BASE;
-					auto delay = (diffPts - decoderTime)/1000; // convert to miliseconds
+					auto delay = (diffPts - decoderTime) / 1000; // convert to miliseconds
 					if (delay > 1000)
 						delay = 0;
-					_RPT1(0, "CurrentPts: %i\n", currentPts);
+					/*_RPT1(0, "CurrentPts: %i\n", currentPts);
 					_RPT1(0, "LastPts: %i\n", lastPts);
-					/*_RPT1(0, "DecTime: %i\n", decoderTime);
+					_RPT1(0, "DecTime: %i\n", decoderTime);
 					_RPT1(0, "Diff: %i\n", diffPts);
 					_RPT1(0, "Delay: %f\n", delay);*/
 					if (frame_finished){
 						try{
-							if (delay > 0 && lastPts != 0){
+							if (delay > 0){
 								SDL_Delay(delay);
 							}
 							Render(startTime, sdlTexture, sdlRenderer, frame);
@@ -731,6 +715,12 @@ void CFFmpegPlayer::startDecoderVideo()
 			std::cerr << "An error occurred in video decoding thread: " << e.what() << std::endl;
 			std::abort();
 		}
+
+
+		if (hasAudio())
+			stopAudio();
+		SDL_CloseAudioDevice(m_audioDevice);
+
 		_RPT1(0, "PlaybackTime: %i", ((av_gettime_relative() - StartTimePlayback) / AV_TIME_BASE));
 		if (m_quit)
 			m_decoder.vDecode_state = state::Interrupted;
@@ -746,7 +736,6 @@ void CFFmpegPlayer::startDecoderAudio()
 	std::thread([this]()
 	{
 		DEBUG_MSG("Audio decoder started");
-
 		try
 		{
 			int frame_finished;
@@ -786,8 +775,8 @@ void CFFmpegPlayer::startDecoderAudio()
 						//if (aborted_frame)
 						//	m_decoder.qAudioFrames.Push(std::move(aborted_frame));
 
-						if (frame->Raw()->format != m_dstSndFmt)
-							frame = resampleAudio(std::move(frame));
+						/*if (frame->Raw()->format != m_dstSndFmt)
+							frame = resampleAudio(std::move(frame));*/
 
 						auto msec = av_q2d(m_fmtCtx->streams[m_audioStreamIndex]->time_base) * 1000;
 						frame->Raw()->pkt_duration = av_frame_get_pkt_duration(frame->Raw()) * static_cast<int64_t>(msec);
@@ -810,10 +799,6 @@ void CFFmpegPlayer::startDecoderAudio()
 			std::cerr << "An error occurred in audio decoding thread: " << e.what() << std::endl;
 			std::abort();
 		}
-		if (hasAudio())
-			stopAudio();
-
-		SDL_CloseAudioDevice(m_audioDevice);
 
 		if (m_quit)
 			m_decoder.aDecode_state = state::Interrupted;
@@ -840,28 +825,28 @@ Frame::Ptr CFFmpegPlayer::resampleAudio(Frame::Ptr frame)
 	if (auto err = swr_convert_frame(m_resampleCtx, resampled->Raw(), frame->Raw()))
 		throw std::exception("cannot resample audio");
 
-	//	auto msec = av_q2d(m_fmtCtx->streams[m_audioStreamIndex]->time_base) * 1000;
-	//
-	//resampled->Raw()->pkt_dts					= frame->Raw()->pkt_dts;
-	//resampled->Raw()->pkt_pts					= frame->Raw()->pkt_pts;
-	//resampled->Raw()->pts						= frame->Raw()->pts;
-	//resampled->Raw()->best_effort_timestamp		= av_frame_get_best_effort_timestamp(frame->Raw());
-	resampled->Raw()->pkt_duration = av_frame_get_pkt_duration(frame->Raw());
+	/*	auto msec = av_q2d(m_fmtCtx->streams[m_audioStreamIndex]->time_base) * 1000;
+
+	resampled->Raw()->pkt_dts					= frame->Raw()->pkt_dts;
+	resampled->Raw()->pkt_pts					= frame->Raw()->pkt_pts;
+	resampled->Raw()->pts						= frame->Raw()->pts;
+	resampled->Raw()->best_effort_timestamp		= av_frame_get_best_effort_timestamp(frame->Raw());
+	resampled->Raw()->pkt_duration = av_frame_get_pkt_duration(frame->Raw());*/
 
 	return resampled;
 }
 
+int m_pauseAudio{ 0 };
+
 void CFFmpegPlayer::Render(int64_t startTime, SDL_Texture *sdlTexture, SDL_Renderer *sdlRenderer, AVFrame *frame)
 {
-	//auto frameDuration = AV_TIME_BASE / av_q2d(av_guess_frame_rate(m_fmtCtx, m_fmtCtx->streams[m_videoStreamIndex], nullptr));
 	SDL_UpdateYUVTexture(sdlTexture, nullptr, frame->data[0], frame->linesize[0], frame->data[1], frame->linesize[1], frame->data[2], frame->linesize[2]);
 	SDL_RenderCopy(sdlRenderer, sdlTexture, nullptr, nullptr);
 	SDL_RenderPresent(sdlRenderer);
-	//auto endRender = av_gettime_relative();
-	//auto renderTime = static_cast<double>(endRender - startTime);
-	//auto delay = frameDuration - renderTime;
-	//if (delay > 0)
-	//	std::this_thread::sleep_for(std::chrono::microseconds(static_cast<int>(rint(delay))));
+	if (m_pauseAudio == 0){
+		SDL_PauseAudioDevice(m_audioDevice, m_pauseAudio);
+		m_pauseAudio = 1;
+	}
 }
 
 void CFFmpegPlayer::startRenderer()
@@ -1053,8 +1038,8 @@ void CFFmpegPlayer::unpause()
 	assert(m_paused);
 	m_paused = false;
 	m_unpause.notify_all();
-	//if (hasAudio())
-	startAudio();
+	/*if (hasAudio())
+		startAudio();*/
 
 	DEBUG_MSG("++Unpause");
 }
@@ -1091,10 +1076,8 @@ void CFFmpegPlayer::startAudio()
 {
 	// warm up the cache first
 	if (hasAudio())
-	{
-		m_decoder.qAudioFrames.Wait(300);
-	}
-	SDL_PauseAudioDevice(m_audioDevice, 0);
+		//m_decoder.qAudioFrames.Wait(200);
+		SDL_PauseAudioDevice(m_audioDevice, 0);
 }
 
 bool CFFmpegPlayer::hasAudio() const

@@ -1,5 +1,4 @@
 #pragma once
-#define _CRT_SECURE_NO_WARNINGS
 #include <windows.h>
 #include <tchar.h>
 #include <stdio.h>
@@ -78,6 +77,8 @@ private:
 protected:
 	/*---------------Input-Variables--------------------------*/
 
+	AVStream* m_outputVideoStream{ nullptr };
+	AVStream* m_outputAudioStream{ nullptr };
 	std::string m_rtspPath;
 	//Input format context
 	AVFormatContext *m_inputFmtCtx{ nullptr };
@@ -136,7 +137,7 @@ protected:
 	*	return created stream index
 	*
 	*/
-	int CreateStream(AVStream *srcStream, AVFormatContext *&dstFmtCtx, AVCodecID dstCodecId);
+	AVStream* CreateStream(AVStream *srcStream, AVFormatContext *&dstFmtCtx, AVCodecID dstCodecId);
 
 	/**
 	*	Filling ouput streams using CreateStream for video and audio if it is

@@ -108,9 +108,8 @@ class CFFmpegPlayer : public CBasePlayer
 	static const std::size_t				VIDEO_QUEUE_SIZE{ 60 };
 	static const std::size_t				AUDIO_QUEUE_SIZE{ 60 };
 	static const std::size_t				QUEUE_SIZE_THRESH{ 20 };
-
 	std::string								m_fileName;
-	bool									m_startDecodeAndRender{ false };
+	bool									m_startDecode{ false };
 	AVFormatContext							*m_fmtCtx{ nullptr };
 	AVDictionary							*m_options{ NULL }; // словарь с опциями для поднятия rtp соединения
 	AVCodec									*m_codecAudio{ nullptr }, *m_codecVideo{ nullptr };
@@ -166,6 +165,15 @@ class CFFmpegPlayer : public CBasePlayer
 		} syncInfo;
 	} m_decoder;
 
+	typedef struct PacketQueue {
+		AVPacketList *first_pkt, *last_pkt;
+		int nb_packets;
+		int size;
+		SDL_mutex *mutex;
+		SDL_cond *cond;
+	} PacketQueue;
+
+	PacketQueue								audioq;
 	int64_t									m_seekPos{ -1 };
 	LONGLONG								m_timestamp{ 0 };
 	std::atomic<int64_t>					m_current_timestamp;
@@ -187,6 +195,7 @@ class CFFmpegPlayer : public CBasePlayer
 	FFileEndCallback						m_cbOnEof;
 	FErrorCallback							m_cbOnError;
 
+	bool m_startAudio{false};
 public:
 
 	CFFmpegPlayer(PCHAR pchFileName, FDecodeCallback fOnFrame, FFileEndCallback fOnEof, FEndInitCallback fOnInit, FErrorCallback fOnError, int timeout, HWND h_MainWindow);
@@ -269,7 +278,6 @@ private:
 	void startAudio();
 
 	BOOL Init();
-
 	static int Interrupt_cb(void *ctx);
 
 	BOOL InputData(BYTE* pBuf, DWORD dwSize) override;

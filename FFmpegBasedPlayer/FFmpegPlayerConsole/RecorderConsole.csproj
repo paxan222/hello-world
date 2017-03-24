@@ -4,36 +4,36 @@
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{D3B113BE-4507-456B-969C-AFA4CC5B5926}</ProjectGuid>
-    <OutputType>Library</OutputType>
+    <ProjectGuid>{4AE5570E-48DA-464B-A149-C3EC3DC88902}</ProjectGuid>
+    <OutputType>Exe</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>RecorderWrap</RootNamespace>
-    <AssemblyName>RecorderWrap</AssemblyName>
+    <RootNamespace>RecorderConsole</RootNamespace>
+    <AssemblyName>RecorderConsole</AssemblyName>
     <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <PlatformTarget>x86</PlatformTarget>
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
-    <OutputPath>bin\x86\Debug\</OutputPath>
+    <OutputPath>bin\Debug\</OutputPath>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
-    <PlatformTarget>x86</PlatformTarget>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <PlatformTarget>AnyCPU</PlatformTarget>
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
     <OutputPath>bin\Release\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
-    <PlatformTarget>x86</PlatformTarget>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
+    <Reference Include="System.Configuration" />
     <Reference Include="System.Core" />
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
@@ -42,24 +42,22 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="ErrorCode.cs" />
-    <Compile Include="RtspRecorder.cs" />
+    <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
-  <ItemGroup />
   <ItemGroup>
-    <Content Include="Dll\Recorder.dll">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content>
-    <Content Include="Dll\Recorder.pdb">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content>
+    <ProjectReference Include="..\RecorderWrap\RecorderWrap.csproj">
+      <Project>{D3B113BE-4507-456B-969C-AFA4CC5B5926}</Project>
+      <Name>RecorderWrap</Name>
+    </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="App.config" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
-    <PreBuildEvent>"$(MSBuildBinPath)\msbuild.exe" $(SolutionDir)Recorder\Recorder.vcxproj  /p:SolutionDir=$(SolutionDir) /p:Configuration=$(ConfigurationName) /p:Platform=$(PlatformTarget)
-xcopy /Y "$(SolutionDir)Recorder\bin\$(PlatformTarget)\$(ConfigurationName)\Recorder.dll" "$(ProjectDir)Dll\"
-xcopy /Y "$(SolutionDir)Recorder\bin\$(PlatformTarget)\$(ConfigurationName)\Recorder.pdb" "$(ProjectDir)Dll\"</PreBuildEvent>
+    <PostBuildEvent>xcopy /Y "$(SolutionDir)assemblies\ffmpeg\bin" "$(ProjectDir)$(OutDir)Dll\"
+xcopy /Y "$(SolutionDir)assemblies\SDL2-2.0.3\lib\x86" "$(ProjectDir)$(OutDir)Dll\"</PostBuildEvent>
   </PropertyGroup>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.

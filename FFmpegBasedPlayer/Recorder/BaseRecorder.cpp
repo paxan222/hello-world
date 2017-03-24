@@ -5,19 +5,19 @@
 int CBaseRecorder::Interrupt_cb(void *opaque){
 	CBaseRecorder* recorder = static_cast<CBaseRecorder*>(opaque);
 	int time = GetTickCount();
-	if ((time - recorder->m_timePrev) > recorder->m_timeout && !recorder->m_skipCheckTimeoutFlag){
+	if (((time - recorder->m_timePrev) > recorder->m_timeout) && !recorder->m_skipCheckTimeoutFlag){
 		return 1;
 	}
 	return 0;
 }
 
-BOOL CBaseRecorder::CheckIFrame(AVPacket packet){
+BOOL CBaseRecorder::CheckIFrame(AVPacket packet)
+{
 	if (packet.flags == AV_PKT_FLAG_KEY ||
 		packet.flags == AV_PKT_FLAG_KEY + AV_PKT_FLAG_CORRUPT ||
 		packet.flags == AV_PKT_FLAG_KEY + AV_PKT_FLAG_CORRUPT + AV_PKT_FLAG_DISCARD)
 		return TRUE;
-	else
-		return FALSE;
+	return FALSE;
 }
 
 void CBaseRecorder::WritePacket(AVPacket *srcPacket, AVStream *srcStream, AVFormatContext *dstFmtCtx, int dstStreamIndex){
@@ -41,6 +41,7 @@ CBaseRecorder::CBaseRecorder(FErrorCallback fErrorCallback)
 
 CBaseRecorder::~CBaseRecorder()
 {
+	m_ErrCb = nullptr;
 }
 
 BOOL CBaseRecorder::StartRecord(){
@@ -50,6 +51,18 @@ BOOL CBaseRecorder::StartRecord(){
 		int64_t lastPtsAudio = 0;
 		while (!m_stop){
 			av_init_packet(&packet);
+			packet.data = nullptr;
+			packet.size = 0;
+			if (m_writeHeader){
+				if (!WriteHeaderTo(m_outputFmtCtx)){
+					if (m_ErrCb)
+						std::thread([this]{m_ErrCb(m_errorCode); }).detach();
+					av_packet_unref(&packet);
+					av_free_packet(&packet);
+					break;
+				}
+				m_writeHeader = false;
+			}
 			//Read packet
 			m_timeout = 1000;
 			m_timePrev = GetTickCount();
@@ -61,19 +74,6 @@ BOOL CBaseRecorder::StartRecord(){
 				break;
 			}
 			m_skipCheckTimeoutFlag = true;
-			//Write header from IFrame
-			if (m_writeHeader){
-				if (CheckIFrame(packet) && (packet.stream_index == m_inputVideoStream->index)){
-					m_writeHeader = false;
-					if (!WriteHeaderTo(m_outputFmtCtx))
-					{
-						if (m_ErrCb)
-							std::thread([this]{m_ErrCb(m_errorCode); }).detach();
-						break;
-					}
-				}
-				else continue; //Skip frame until IFrame to start write header
-			}
 			//Start write packet to output
 			if (packet.stream_index == m_inputVideoStream->index){
 				packet.pts -= lastPtsVideo;
@@ -89,10 +89,14 @@ BOOL CBaseRecorder::StartRecord(){
 					}
 				}
 			}
+			av_packet_unref(&packet);
 			av_free_packet(&packet);
 			//End write packet
 		}
 		avformat_close_input(&m_inputFmtCtx);
+		if (m_outputFmtCtx != nullptr){
+			av_write_trailer(m_outputFmtCtx);
+		}
 	});
 	m_write_thread->joinable();
 	return TRUE;
@@ -181,17 +185,20 @@ BOOL CBaseRecorder::OpenInputStream(PCHAR rtspPath, int connectionTimeout){
 	return TRUE;
 }
 
-int CBaseRecorder::CreateStream(AVStream *srcStream, AVFormatContext *&dstFmtCtx, AVCodecID dstCodecId){
-	auto tmpCodec = avcodec_find_encoder(dstCodecId);
-	auto outputStream = avformat_new_stream(dstFmtCtx, tmpCodec);
-	avcodec_copy_context(outputStream->codec, srcStream->codec);
-	return outputStream->index;
+AVStream* CBaseRecorder::CreateStream(AVStream *srcStream, AVFormatContext *&dstFmtCtx, AVCodecID dstCodecId){
+	auto outputStream = avformat_new_stream(dstFmtCtx, avcodec_find_encoder(dstCodecId));
+	//avcodec_copy_context(outputStream->codec, srcStream->codec);
+	avcodec_parameters_copy(outputStream->codecpar, srcStream->codecpar);
+	return outputStream;
 }
 
 void CBaseRecorder::FillOutputStreamIndex(AVFormatContext *&dstFmtCtx){
 	//Create output video stream
-	m_outputVideoStreamIndex = CreateStream(m_inputVideoStream, dstFmtCtx, dstFmtCtx->oformat->video_codec);
+	m_outputVideoStream = CreateStream(m_inputVideoStream, dstFmtCtx, dstFmtCtx->oformat->video_codec);
+	m_outputVideoStreamIndex = m_outputVideoStream->id;
 	//Create output audio stream
-	if (m_inputAudioStream != nullptr)
-		m_outputAudioStreamIndex = CreateStream(m_inputAudioStream, dstFmtCtx, dstFmtCtx->oformat->audio_codec);
+	if (m_inputAudioStream != nullptr){
+		m_outputAudioStream = CreateStream(m_inputAudioStream, dstFmtCtx, dstFmtCtx->oformat->audio_codec);
+		m_outputAudioStreamIndex = m_outputAudioStream->id;
+	}
 }

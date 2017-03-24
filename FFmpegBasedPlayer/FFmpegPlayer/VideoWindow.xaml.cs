@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Interop;
+using PlayerSdlWrap;
 using RVI.NativePlayerWrap;
 
 namespace FFmpegPlayer
@@ -24,16 +25,18 @@ namespace FFmpegPlayer
 			Show();
 			var wih = new WindowInteropHelper(this);
 			IntPtr hwnd = wih.Handle;
-			_playerIntPtr = NativePlayer.GetRtspPlayer(path, null, null, null, 10000, hwnd);
-			if (_playerIntPtr != IntPtr.Zero)
-			{
-				//ShowFfmpeg(path);
-				NativePlayer.Play(_playerIntPtr);
-			}
-			else
-			{
-				Close();
-			}
+			_playerIntPtr = PlayerSdl.StartPlayer(path, hwnd);
+			//_playerIntPtr = NativePlayer.GetRtspPlayer(path, null, null, null, 10000, hwnd);
+			//NativePlayer.SwitchSound(_playerIntPtr, true);
+			//if (_playerIntPtr != IntPtr.Zero)
+			//{
+			//	//ShowFfmpeg(path);
+			//	//NativePlayer.Play(_playerIntPtr);
+			//}
+			//else
+			//{
+			//	Close();
+			//}
 		}
 
 		private void ShowFfmpeg(string path)
@@ -47,22 +50,8 @@ namespace FFmpegPlayer
 		public void CloseChild()
 		{
 			if (_playerIntPtr != IntPtr.Zero)
-				NativePlayer.ReleasePlayer(_playerIntPtr);
+				//NativePlayer.ReleasePlayer(_playerIntPtr);
 			Close();
-		}
-
-		private void SwitchSound_OnClick(object sender, RoutedEventArgs e)
-		{
-			if (ReferenceEquals(SwitchSound.Content, "Mute"))
-			{
-				SwitchSound.Content = "Unmute";
-				NativePlayer.SwitchSound(_playerIntPtr, false);
-			}
-			else
-			{
-				SwitchSound.Content = "Mute";
-				NativePlayer.SwitchSound(_playerIntPtr, true);
-			}
 		}
 		
 		private void VideoWindow_OnClosed(object sender, EventArgs e)

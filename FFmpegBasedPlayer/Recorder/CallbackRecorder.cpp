@@ -13,9 +13,26 @@ CCallbackRecorder::CCallbackRecorder(PCHAR rtspPath, int connectionTimeout,
 
 CCallbackRecorder::~CCallbackRecorder()
 {
+	delete[] m_buffer;
+	m_buffer = new BYTE[BUFFER_SIZE];
+	if (m_outputVideoStream)
+		avcodec_close(m_outputVideoStream->codec);
+	if (m_outputAudioStream)
+		avcodec_close(m_outputAudioStream->codec);
+	if (m_outputFmtCtx != nullptr)
+		avformat_free_context(m_outputFmtCtx);
+	if (m_outputFormat)
+	{
+		av_free(m_outputFormat);
+	}
+	if (m_receivedCtx){
+		av_freep(&m_receivedCtx->buffer);
+		av_free(m_receivedCtx);
+	}
 }
 
 BOOL CCallbackRecorder::Open(){
+	av_log_set_level(AV_LOG_DEBUG);
 	if (m_RcvDtCb == nullptr)
 	{
 		if (m_ErrCb)
@@ -25,6 +42,18 @@ BOOL CCallbackRecorder::Open(){
 	if (!OpenInputStream((PCHAR)m_rtspPath.c_str(), m_timeout)){
 		if (m_ErrCb)
 			std::thread([this]{m_ErrCb(m_errorCode); }).detach();
+		return FALSE;
+	}
+	//Guess output format
+	m_outputFormat = av_guess_format("matroska", nullptr, nullptr);
+	if (!m_outputFormat){
+		m_errorCode = ErrorCode::OutputFormatNotMatchFormat;
+		return FALSE;
+	}
+	//Alloc AVIO format context for callback
+	m_receivedCtx = avio_alloc_context(m_buffer, BUFFER_SIZE, 1, this, nullptr, SendDataCallback, nullptr);
+	if (!m_receivedCtx){
+		m_errorCode = ErrorCode::AllocCallbackError;
 		return FALSE;
 	}
 	return TRUE;
@@ -44,7 +73,7 @@ BOOL CCallbackRecorder::SendHeader(){
 		AVFormatContext *dstFmtCtx = avformat_alloc_context();
 		dstFmtCtx->oformat = outputFmt;
 		//Alloc AVIO format context for callback
-		auto receivedCtx = avio_alloc_context(buf, BUFFER_SIZE, 1, this, nullptr, ReceiveHeaderCallback, nullptr);
+		auto receivedCtx = avio_alloc_context(buf, BUFFER_SIZE, 1, this, nullptr, SendHeaderCallback, nullptr);
 		if (!receivedCtx){
 			return FALSE;
 		}
@@ -73,27 +102,19 @@ BOOL CCallbackRecorder::SendHeader(){
 }
 
 /*private*/
-
 BOOL CCallbackRecorder::WriteHeaderTo(AVFormatContext *&dstFmtCtx){
-	delete[] m_buffer;
-	m_buffer = new BYTE[BUFFER_SIZE];
-
-	//Guess output format
-	auto outputFmt = av_guess_format("matroska", nullptr, nullptr);
-	if (!outputFmt){
-		m_errorCode = ErrorCode::OutputFormatNotMatchFormat;
-		return FALSE;
+	if (dstFmtCtx != nullptr){
+		if (m_outputVideoStream)
+			avcodec_close(m_outputVideoStream->codec);
+		if (m_outputAudioStream)
+			avcodec_close(m_outputAudioStream->codec);
+		av_write_trailer(dstFmtCtx);
+		avformat_free_context(dstFmtCtx);
+		dstFmtCtx = nullptr;
 	}
 	dstFmtCtx = avformat_alloc_context();
-	dstFmtCtx->oformat = outputFmt;
-	//Alloc AVIO format context for callback
-	auto receivedCtx = avio_alloc_context(m_buffer, BUFFER_SIZE, 1, this, nullptr, ReceiveDataCallback, nullptr);
-	if (!receivedCtx){
-		m_errorCode = ErrorCode::AllocCallbackError;
-		return FALSE;
-	}
-	receivedCtx->seekable = 0;
-	dstFmtCtx->pb = receivedCtx;
+	dstFmtCtx->oformat = m_outputFormat;
+	dstFmtCtx->pb = m_receivedCtx;
 	//Set up flags
 	dstFmtCtx->flags = AVFMT_FLAG_CUSTOM_IO;
 
@@ -103,22 +124,32 @@ BOOL CCallbackRecorder::WriteHeaderTo(AVFormatContext *&dstFmtCtx){
 	}
 
 	FillOutputStreamIndex(dstFmtCtx);
-		
-	//Set up flag to true, to send to callback that it is new file
+
+	//Set up flag to true, to send to callback that it is new file	
 	m_isHeaderData = true;
-	avformat_write_header(dstFmtCtx, nullptr);
+	auto ret = avformat_write_header(dstFmtCtx, nullptr);
+	if (ret < 0){
+		char err_buf[255];
+		av_strerror(ret, err_buf, sizeof(err_buf));
+		std::thread([=]{m_ErrCb(ErrorCode::UnknownError); }).detach();
+		return FALSE;
+	}
 	m_isHeaderData = false;
 
 	return TRUE;
 }
+clock_t start = clock();
 
-int CCallbackRecorder::ReceiveDataCallback(void* opaque, uint8_t *buf, int buf_size){
-	CCallbackRecorder* recorder = static_cast<CCallbackRecorder*>(opaque);
-	recorder->m_RcvDtCb(buf, buf_size, recorder->m_isHeaderData);
-	return 0;
+int CCallbackRecorder::SendDataCallback(void* opaque, uint8_t *buf, int buf_size){
+	CCallbackRecorder* recorder = reinterpret_cast<CCallbackRecorder*>(opaque);
+	auto buffer = new BYTE[buf_size];
+	memcpy(buffer, buf, buf_size);
+	recorder->m_RcvDtCb(buffer, buf_size, recorder->m_isHeaderData);
+	delete[] buffer;
+	return buf_size;
 }
 
-int CCallbackRecorder::ReceiveHeaderCallback(void* opaque, uint8_t *buf, int buf_size){
+int CCallbackRecorder::SendHeaderCallback(void* opaque, uint8_t *buf, int buf_size){
 	CCallbackRecorder* recorder = static_cast<CCallbackRecorder*>(opaque);
 	recorder->m_RcvHdCb(buf, buf_size);
 	return 0;

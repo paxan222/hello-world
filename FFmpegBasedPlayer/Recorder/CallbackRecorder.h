@@ -4,6 +4,8 @@
 
 class CCallbackRecorder : public CBaseRecorder
 {
+	AVIOContext* m_receivedCtx{ nullptr };
+	AVOutputFormat* m_outputFormat{ nullptr };
 	//Buffer with byte data
 	BYTE *m_buffer{ new BYTE[BUFFER_SIZE] };
 	//Data with new header flag
@@ -12,7 +14,7 @@ class CCallbackRecorder : public CBaseRecorder
 	//Receive data callback
 	FFRecieveDataCallback m_RcvDtCb;
 	FFRecieveHeaderCallback m_RcvHdCb;
-
+	int _filesize = 0;
 public:
 	/**
 	*	If connectionTimeout = 0, then we work without timeout
@@ -23,7 +25,6 @@ public:
 	BOOL Open() override;
 	BOOL WriteHeader();
 	BOOL SendHeader();
-	
 private:
 	/**
 	*	Abstract function WriteHeaderTo is allocate output
@@ -43,7 +44,7 @@ private:
 	*	@param buf_size	- buffer size
 	*	Called an external callback
 	*/
-	static int ReceiveDataCallback(void *opaque, uint8_t *buf, int buf_size);
+	static int SendDataCallback(void *opaque, uint8_t *buf, int buf_size);
 	/**
 	*	Callback for receive header
 	*	@param *opaque	- opaque
@@ -51,5 +52,5 @@ private:
 	*	@param buf_size	- buffer size
 	*	Called an external callback
 	*/
-	static int ReceiveHeaderCallback(void *opaque, uint8_t *buf, int buf_size);
+	static int SendHeaderCallback(void *opaque, uint8_t *buf, int buf_size);
 };
