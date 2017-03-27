@@ -140,7 +140,7 @@
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
     <PostBuildEvent>xcopy /Y "$(SolutionDir)assemblies\ffmpeg\bin" "$(ProjectDir)$(OutDir)Dll\"
-xcopy /Y "$(SolutionDir)assemblies\SDL2-2.0.3\lib\x86" "$(ProjectDir)$(OutDir)Dll\"</PostBuildEvent>
+xcopy /Y "$(SolutionDir)assemblies\SDL2-2.0.5\lib\x86" "$(ProjectDir)$(OutDir)Dll\"</PostBuildEvent>
   </PropertyGroup>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.

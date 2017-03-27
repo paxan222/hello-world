@@ -41,8 +41,8 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <OutDir>bin\$(PlatformTarget)\$(Configuration)\</OutDir>
     <ExecutablePath>$(VC_ExecutablePath_x86);$(WindowsSDK_ExecutablePath);$(VS_ExecutablePath);$(MSBuild_ExecutablePath);$(SystemRoot)\SysWow64;$(FxCopDir);$(PATH);$(WindowsSdkDir_80)bin\x86;</ExecutablePath>
-    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);$(WindowsSdkDir_80)Include\shared;$(WindowsSdkDir_80)Include\um;$(SolutionDir)assemblies\ffmpeg\include\;$(SolutionDir)assemblies\SDL2-2.0.3\include\</IncludePath>
-    <LibraryPath>$(VC_LibraryPath_x86);$(WindowsSDK_LibraryPath_x86);$(WindowsSdkDir_80)lib\win8\um\x86;$(SolutionDir)assemblies\ffmpeg\lib\;$(SolutionDir)assemblies\SDL2-2.0.3\lib\x86</LibraryPath>
+    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);$(WindowsSdkDir_80)Include\shared;$(WindowsSdkDir_80)Include\um;$(SolutionDir)assemblies\ffmpeg\include\;$(SolutionDir)assemblies\SDL2-2.0.5\include\</IncludePath>
+    <LibraryPath>$(VC_LibraryPath_x86);$(WindowsSDK_LibraryPath_x86);$(WindowsSdkDir_80)lib\win8\um\x86;$(SolutionDir)assemblies\ffmpeg\lib\;$(SolutionDir)assemblies\SDL2-2.0.5\lib\x86</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <OutDir>bin\$(PlatformTarget)\$(Configuration)\</OutDir>
@@ -56,7 +56,7 @@
       <Optimization>Disabled</Optimization>
       <SDLCheck>
       </SDLCheck>
-      <AdditionalIncludeDirectories>$(SolutionDir)assemblies\SDL2-2.0.3\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)assemblies\SDL2-2.0.5\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
       <BrowseInformation>true</BrowseInformation>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
@@ -64,7 +64,7 @@
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>$(SolutionDir)assemblies\SDL2-2.0.3\lib\x86;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(SolutionDir)assemblies\SDL2-2.0.5\lib\x86;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
       <ModuleDefinitionFile>
       </ModuleDefinitionFile>

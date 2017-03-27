@@ -50,7 +50,7 @@ namespace FFmpegPlayer
 		public void CloseChild()
 		{
 			if (_playerIntPtr != IntPtr.Zero)
-				//NativePlayer.ReleasePlayer(_playerIntPtr);
+				NativePlayer.Stop(_playerIntPtr);
 			Close();
 		}
 		

@@ -108,7 +108,7 @@ namespace FFmpegPlayerConsole
 				}
 
 				_fileSize += bufsize;
-				if (_fileSize > 10000)
+				if (_fileSize > 104857600)
 				{
 					RtspRecorder.WriteHeader(_rtspPath);
 					_fileSize = 0;

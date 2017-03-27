@@ -28,6 +28,15 @@ extern "C" {
 #include "PlayerSdlApi.h"
 #pragma comment(lib, "SDL2")
 
+
+#define AUDIO_BUF_SIZE ((192000 * 3)/20)
+#define MAX_AUDIO_BUF_SIZE (192000 * 4)
+#define FF_REFRESH_EVENT (SDL_USEREVENT + 1)
+/* no AV sync correction is done if below the AV sync threshold */
+#define AV_SYNC_THRESHOLD 0.01
+/* no AV correction is done if too big error */
+#define AV_NOSYNC_THRESHOLD 10.0
+
 class CAVInitializer {
 public:
 	CAVInitializer() {
@@ -38,6 +47,7 @@ public:
 		avformat_network_deinit();
 	}
 };
+
 class CPlayerSdl
 {
 	typedef int (SDLCALL *ThreadProc)(void *);
@@ -64,6 +74,14 @@ class CPlayerSdl
 		SDL_cond* wcond;
 	} RingBuffer;
 
+	typedef struct Picture{
+		SDL_cond* condition_;
+		SDL_mutex* mutex_;
+		SDL_Texture *texture_{ nullptr };
+		int ready_{0};
+		double pts_{0};
+	};
+
 	std::recursive_mutex m_lock;
 	HWND m_hMainWindow;
 	std::string m_filename;
@@ -86,8 +104,22 @@ class CPlayerSdl
 	PacketQueue m_video_packet_queue;
 	PacketQueue m_audio_packet_queue;
 	RingBuffer m_audio_frame_buffer;
-
+	Picture picture_;
 	bool m_quit{ false };
+	SDL_AudioSpec m_audioDesiredSpec;
+	SDL_AudioSpec m_audioSpec;
+	SDL_Thread* audio_decode_sdl_thread_;
+
+	double audio_clock{0};
+	double video_clock{0};
+
+	double frame_timer{0};
+	double frame_last_pts{0};
+	double frame_last_delay{40e-30};
+	SDL_Window *screen;
+	SDL_Renderer *sdlRenderer;
+	double video_current_pts;
+	double video_current_pts_time;
 public:
 	CPlayerSdl(PCHAR filename, HWND h_MainWindow)
 	{
@@ -110,12 +142,13 @@ public:
 	}
 	BOOL OpenStream();
 	BOOL Play();
-	BOOL Stop() const;
+	BOOL Stop();
 private:
 	void Log(std::string message);
 	void LogAv(int ret);
 	BOOL HasVideo() const;
 	BOOL HasAudio() const;
+	static void AudioCallback(void* userdata, uint8_t* stream, int len);
 
 	static void PacketQueueInit(PacketQueue* q);
 	static void PacketQueueDeinit(PacketQueue* q);
@@ -125,13 +158,26 @@ private:
 
 	int RingBufferInit(RingBuffer* rb, int initial_size, int max_size);
 	void RingBufferDeinit(RingBuffer* rb);
-	int RingBufferWrite(RingBuffer* rb, void* buffer, int len, int block);
-	int RingBufferRead(RingBuffer* rb, void* buffer, int len, int block);
-	int RingBufferSize(RingBuffer* rb);
-	void RingBufferEof(RingBuffer* rb);
+	static int RingBufferWrite(RingBuffer* rb, void* buffer, int len, int block);
+	static int RingBufferRead(RingBuffer* rb, void* buffer, int len, int block);
+	static int RingBufferSize(RingBuffer* rb);
+	static void RingBufferEof(RingBuffer* rb);
 
 	static SDL_Thread* ThreadStart(ThreadProc fn, void* userdata, const char* name);
 	static int ThreadWait(SDL_Thread* thread, const char* name);
+	void Clear();
 	static int DemuxSdlThread(void* opaque);
+	static double SynchronizeVideo(CPlayerSdl* pPlayerSdl, AVFrame* frame, double pts);
 	static int VideoDecodeSdlThread(void* opaque);
+	static int AudioDecodeSdlThread(void* opaque);
+	static uint32_t SdlRefreshTimer(uint32_t interval, void* opaque);
+	static void ScheduleRefresh(CPlayerSdl* pPlayerSdl, int delay);
+	static double GetExternalClock();
+	static double GetVideoClock(CPlayerSdl* pPlayerSdl);
+	static double GetAudioClock(CPlayerSdl* pPlayerSdl);
+	static double ComputeDelay(CPlayerSdl* pPlayerSdl);
+	static void VideoDisplay(CPlayerSdl* pPlayerSdl);
+	static void VideoRefreshTimer(CPlayerSdl* pPlayerSdl);
+	static void Quit(CPlayerSdl* pPlayerSdl);
+	static void EventLoop(CPlayerSdl* pPlayerSdl);
 };
