@@ -59,7 +59,7 @@ class CPlayerSdl
 		int eof;
 		SDL_mutex* mutex;
 		SDL_cond* cond;
-	} PacketQueue;
+	}PacketQueue;
 
 	typedef struct RingBuffer {
 		uint8_t* data;
@@ -67,20 +67,20 @@ class CPlayerSdl
 		int max_size;
 		int rindex;  // Read position
 		int windex;  // Write position
-		char eof;  // EOF flag
-		char lastop;  // last operation flag: 0 - read, 1 - write
+		int eof;  // EOF flag
+		int lastop;  // last operation flag: 0 - read, 1 - write
 		SDL_mutex* mutex;
 		SDL_cond* rcond;
 		SDL_cond* wcond;
-	} RingBuffer;
+	}RingBuffer;
 
 	typedef struct Picture{
-		SDL_cond* condition_;
-		SDL_mutex* mutex_;
-		SDL_Texture *texture_{ nullptr };
-		int ready_{0};
-		double pts_{0};
-	};
+		SDL_cond* condition;
+		SDL_mutex* mutex;
+		SDL_Texture *texture{ nullptr };
+		int ready{ 0 };
+		double pts{ 0 };
+	}Picture;
 
 	std::recursive_mutex m_lock;
 	HWND m_hMainWindow;
@@ -98,28 +98,34 @@ class CPlayerSdl
 	AVCodecContext* m_audioCodecContext{ nullptr };
 	AVCodec* m_audioCodec{ nullptr };
 
-	SDL_Thread* demux_sdl_thread_;
-	SDL_Thread* video_decode_sdl_thread_;
+	SDL_Thread* demux_sdl_thread;
+	SDL_Thread* video_decode_sdl_thread;
+	SDL_Thread* audio_decode_sdl_thread;
 
 	PacketQueue m_video_packet_queue;
 	PacketQueue m_audio_packet_queue;
 	RingBuffer m_audio_frame_buffer;
-	Picture picture_;
+	Picture picture;
 	bool m_quit{ false };
 	SDL_AudioSpec m_audioDesiredSpec;
 	SDL_AudioSpec m_audioSpec;
-	SDL_Thread* audio_decode_sdl_thread_;
 
-	double audio_clock{0};
-	double video_clock{0};
+	double audio_clock{ 0 };
+	double video_clock{ 0 };
 
-	double frame_timer{0};
-	double frame_last_pts{0};
-	double frame_last_delay{40e-30};
-	SDL_Window *screen;
+	double frame_timer{ 0 };
+	double frame_last_pts{ 0 };
+	double frame_last_delay{ 40e-30 };
+	SDL_Window *sdlWindow;
 	SDL_Renderer *sdlRenderer;
 	double video_current_pts;
 	double video_current_pts_time;
+
+	SDL_mutex *render_mutex;
+	int seek_req{0};
+	int64_t seek_pos;
+	int seek_flags;
+	AVPacket flush_pkt;
 public:
 	CPlayerSdl(PCHAR filename, HWND h_MainWindow)
 	{
@@ -154,12 +160,13 @@ private:
 	static void PacketQueueDeinit(PacketQueue* q);
 	static int PacketQueuePush(PacketQueue* q, AVPacket* pkt);
 	static int PacketQueuePop(PacketQueue* q, AVPacket* pkt, int block);
+	static void PacketQueueFlush(PacketQueue* q);
 	static void PacketQueueEof(PacketQueue* q);
 
-	int RingBufferInit(RingBuffer* rb, int initial_size, int max_size);
-	void RingBufferDeinit(RingBuffer* rb);
+	static int RingBufferInit(RingBuffer* rb, int initial_size, int max_size);
+	static void RingBufferDeinit(RingBuffer* rb);
 	static int RingBufferWrite(RingBuffer* rb, void* buffer, int len, int block);
-	static int RingBufferRead(RingBuffer* rb, void* buffer, int len, int block);
+	static int RingBufferRead(RingBuffer* rb, void* buffer, int len, int block, bool soundOn);
 	static int RingBufferSize(RingBuffer* rb);
 	static void RingBufferEof(RingBuffer* rb);
 
@@ -179,5 +186,6 @@ private:
 	static void VideoDisplay(CPlayerSdl* pPlayerSdl);
 	static void VideoRefreshTimer(CPlayerSdl* pPlayerSdl);
 	static void Quit(CPlayerSdl* pPlayerSdl);
+	static void StreamSeek(CPlayerSdl* pPlayerSdl, int64_t pos, int rel);
 	static void EventLoop(CPlayerSdl* pPlayerSdl);
 };
