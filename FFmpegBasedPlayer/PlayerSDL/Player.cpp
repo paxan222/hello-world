@@ -142,7 +142,7 @@ void CPlayerSdl::AudioCallback(void* userdata, uint8_t* stream, int len) {
 	assert(userdata != NULL);
 
 	CPlayerSdl* pPlayer_sdl = static_cast<CPlayerSdl*>(userdata);
-	RingBufferRead(&pPlayer_sdl->m_audio_frame_buffer, stream, len, 1, false);
+	RingBufferRead(&pPlayer_sdl->m_audio_frame_buffer, stream, len, 1, true);
 }
 
 int CPlayerSdl::DemuxSdlThread(void *opaque)
@@ -163,7 +163,7 @@ int CPlayerSdl::DemuxSdlThread(void *opaque)
 				AVRational avtimebaseq = { 1, AV_TIME_BASE };
 				seek_target = av_rescale_q(seek_target, avtimebaseq, pPlayerSdl->m_format_context->streams[stream_index]->time_base);
 			}
-			if (avformat_seek_file(pPlayerSdl->m_format_context, stream_index, INT64_MIN, seek_target, INT64_MAX, pPlayerSdl->seek_flags )<0){
+			if (avformat_seek_file(pPlayerSdl->m_format_context, stream_index, INT64_MIN, seek_target, INT64_MAX, pPlayerSdl->seek_flags) < 0){
 				pPlayerSdl->Log("Couldn't seek file");
 			}
 			else {
@@ -181,12 +181,12 @@ int CPlayerSdl::DemuxSdlThread(void *opaque)
 			pPlayerSdl->seek_req = 0;
 		}
 
-		if (pPlayerSdl->m_video_packet_queue.size > 5 * 256 * 1024 ||
-			pPlayerSdl->m_audio_packet_queue.size > 5 * 16 * 1024) {
+		if (pPlayerSdl->m_video_packet_queue.size > 5 * 256 * 1024 || //1 310 720
+			pPlayerSdl->m_audio_packet_queue.size > 5 * 16 * 1024) {  //81 920
 			SDL_Delay(10);
 			continue;
 		}
-		
+
 		int ret = av_read_frame((pPlayerSdl->m_format_context), &packet);
 		if ((ret == AVERROR_EOF || avio_feof(pPlayerSdl->m_format_context->pb))) {
 			pPlayerSdl->LogAv(AVERROR(ENOMEM));
@@ -197,7 +197,7 @@ int CPlayerSdl::DemuxSdlThread(void *opaque)
 			PacketQueuePush(&pPlayerSdl->m_video_packet_queue, &packet);
 		}
 		else{
-			if (packet.stream_index == audio_stream_index){
+			if (packet.stream_index == audio_stream_index && pPlayerSdl->HasAudio()){
 				PacketQueuePush(&pPlayerSdl->m_audio_packet_queue, &packet);
 			}
 			else{
@@ -246,11 +246,15 @@ int CPlayerSdl::VideoDecodeSdlThread(void* opaque)
 	while (!pPlayerSdl->m_quit){
 		av_init_packet(&packet);
 		frame = av_frame_alloc();
-		if (PacketQueuePop(&pPlayerSdl->m_video_packet_queue, &packet, 1) < 0){
+		if ((PacketQueuePop(&pPlayerSdl->m_video_packet_queue, &packet, 1) < 0) && pPlayerSdl->m_video_packet_queue.eof){
 			//eof queue
 			break;
 		}
-
+		if (!pPlayerSdl->m_renderOn){
+			av_free_packet(&packet);
+			av_frame_free(&frame);
+			continue;
+		}
 		avcodec_decode_video2(pPlayerSdl->m_videoCodecContext, frame, &frame_finished, &packet);
 		if ((pts = av_frame_get_best_effort_timestamp(frame)) == AV_NOPTS_VALUE) {
 			pts = 0;
@@ -295,9 +299,13 @@ int CPlayerSdl::AudioDecodeSdlThread(void* opaque)
 	while (!pPlayerSdl->m_quit) {
 		// Get packet from queue
 		AVPacket packet;
-		if (PacketQueuePop(&pPlayerSdl->m_audio_packet_queue, &packet, 1) < 0) {
+		if ((PacketQueuePop(&pPlayerSdl->m_audio_packet_queue, &packet, 1) < 0) && pPlayerSdl->m_audio_packet_queue.eof){
 			// eof queue
 			break;
+		}
+		if (!pPlayerSdl->m_renderOn){
+			av_free_packet(&packet);
+			continue;
 		}
 		if (packet.data == pPlayerSdl->flush_pkt.data) {
 			avcodec_flush_buffers(pPlayerSdl->m_audioCodecContext);
@@ -308,7 +316,6 @@ int CPlayerSdl::AudioDecodeSdlThread(void* opaque)
 		int len = avcodec_decode_audio4(audio_codec_context, frame, &got_frame, &packet);
 		if (len < 0) {
 			av_free_packet(&packet);
-			fprintf(stderr, "Failed to decode audio frame\n");
 			break;
 		}
 
@@ -330,7 +337,8 @@ int CPlayerSdl::AudioDecodeSdlThread(void* opaque)
 			}
 			RingBufferWrite(&pPlayerSdl->m_audio_frame_buffer, frame->data[0], data_size, 1);
 		}
-		av_free_packet(&packet);
+		if (packet.data)
+			av_free_packet(&packet);
 	}
 	av_frame_free(&frame);
 	RingBufferEof(&pPlayerSdl->m_audio_frame_buffer);
@@ -445,8 +453,6 @@ void CPlayerSdl::VideoRefreshTimer(CPlayerSdl* pPlayerSdl) {
 }
 
 void CPlayerSdl::Quit(CPlayerSdl* pPlayerSdl) {
-	/*SDL_PauseAudio(1);
-	SDL_CloseAudio();*/
 	pPlayerSdl->m_quit = true;
 	SDL_CondBroadcast(pPlayerSdl->picture.condition);
 }
@@ -466,6 +472,10 @@ void CPlayerSdl::EventLoop(CPlayerSdl* pPlayerSdl) {
 	assert(pPlayerSdl != NULL);
 	SDL_Event event;
 	double incr, pos;
+	HWND overlap_window_hwnd;
+	HWND main_window_hwnd = pPlayerSdl->m_hMainWindow;
+	RECT main_window_rect;
+	RECT overlap_window_rect;
 	while (!pPlayerSdl->m_quit) {
 		SDL_WaitEvent(&event);
 		switch (event.type) {
@@ -486,8 +496,15 @@ void CPlayerSdl::EventLoop(CPlayerSdl* pPlayerSdl) {
 						SDL_UnlockMutex(pPlayerSdl->render_mutex);
 						VideoRefreshTimer(pPlayerSdl);
 						break;
-					default:
+					case SDL_WINDOWEVENT_MINIMIZED:
+						pPlayerSdl->m_renderOn = false;
 						break;
+					case SDL_WINDOWEVENT_RESTORED:
+						pPlayerSdl->m_renderOn = true;
+						break;/*
+					default:
+					VideoRefreshTimer(pPlayerSdl);
+					break;*/
 				}
 				break;
 			case SDL_KEYDOWN:
@@ -500,7 +517,7 @@ void CPlayerSdl::EventLoop(CPlayerSdl* pPlayerSdl) {
 						goto do_seek;
 					do_seek:
 						pos = GetVideoClock(pPlayerSdl);
-						pos += incr;						
+						pos += incr;
 						StreamSeek(pPlayerSdl, static_cast<int64_t>(pos*AV_TIME_BASE), incr);
 						break;
 					default:
@@ -592,8 +609,8 @@ BOOL CPlayerSdl::HasVideo() const
 
 BOOL CPlayerSdl::HasAudio() const
 {
-	return m_audioStreamIndex >= 0;
-	//return FALSE;
+	//return m_audioStreamIndex >= 0;
+	return FALSE;
 }
 
 void CPlayerSdl::PacketQueueInit(PacketQueue* q)

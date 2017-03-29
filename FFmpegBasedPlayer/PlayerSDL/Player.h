@@ -122,10 +122,11 @@ class CPlayerSdl
 	double video_current_pts_time;
 
 	SDL_mutex *render_mutex;
-	int seek_req{0};
+	int seek_req{ 0 };
 	int64_t seek_pos;
 	int seek_flags;
 	AVPacket flush_pkt;
+	bool m_renderOn{ true };
 public:
 	CPlayerSdl(PCHAR filename, HWND h_MainWindow)
 	{
