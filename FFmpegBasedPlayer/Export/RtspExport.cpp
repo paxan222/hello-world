@@ -25,6 +25,12 @@ RTSPEXPORT_API int WINAPI GetFrame(PCHAR pchInputPath, char *buffer, int bufferS
 	return pTask->GetFrame(pchInputPath, buffer, bufferSize, width, height, timestamp);
 }
 
+RTSPEXPORT_API int WINAPI GetFrameCollection(FGetImageCallback fgetImageCallback, PCHAR inputFilename, int width, int height, int64_t startTimestamp, int step, int count)
+{
+	CBaseOperation *pTask;
+	return pTask->GetFrameCollection(fgetImageCallback, inputFilename, width, height, startTimestamp, step, count);
+}
+
 RTSPEXPORT_API BOOL WINAPI Cancel(PVOID taskId){
 	if (taskId == nullptr)
 		return FALSE;

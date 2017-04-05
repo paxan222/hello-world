@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
 using RVI.RtspExportWrap;
 
@@ -19,6 +21,7 @@ namespace RtspExportWrap
 		/// </summary>
 		public delegate void OperationCompleteCallback();
 
+		private delegate void GetImageCollectionCallback(IntPtr buffer, int bufferSize);
 		/// <summary>
 		/// Сигнатура функции обратного вызова ошибки
 		/// <param name="errorCode">код ошибки </param>
@@ -92,6 +95,10 @@ namespace RtspExportWrap
 		[DllImport(RTSP_EXPORT_DLL_NAME)]
 		private static extern int GetFrame(string filePath, IntPtr buffer, int bufferSize, int width, int height, Int64 timestamp);
 
+		[DllImport(RTSP_EXPORT_DLL_NAME)]
+		private static extern int GetFrameCollection(GetImageCollectionCallback fGetImageCollectionCallback, string filePath,
+			int width, int height, Int64 startTimestamp, int step, int count);
+
 		/// <summary>
 		/// Отмена операции
 		/// </summary>
@@ -125,12 +132,12 @@ namespace RtspExportWrap
 				Byte[] buffer = new byte[defaultBufferSize];
 				IntPtr pBuffer = Marshal.AllocHGlobal(buffer.Length);
 				int res = RtspExport.GetFrame(path, pBuffer, buffer.Length, width, height, timestamp);
-				Marshal.Copy(pBuffer, buffer,0, buffer.Length);
+				Marshal.Copy(pBuffer, buffer, 0, buffer.Length);
 				Marshal.FreeHGlobal(pBuffer);
 
 				if (res < 0)
 				{
-					defaultBufferSize = res*(-1);
+					defaultBufferSize = res * (-1);
 					continue;
 				}
 				switch (res)
@@ -144,14 +151,39 @@ namespace RtspExportWrap
 					case 3:
 						throw new Exception("Невозможно получить изображение");
 					default:
-						stream.Write(buffer,0, buffer.Length);
+						stream.Write(buffer, 0, buffer.Length);
 						isFinding = true;
 						break;
-						//throw new Exception(string.Format("Размер буффера меньше необходимого: {0}", task));
+					//throw new Exception(string.Format("Размер буффера меньше необходимого: {0}", task));
 				}
 			}
 
 
 		}
+
+		private static GetImageCollectionCallback _getImageCollectionCallback;
+		private static List<byte[]> _frameCollection = new List<byte[]>();
+
+		public static IEnumerable<byte[]> GetFrameCollectionByRange(string path, int width, int height, Int64 startTimestamp, int step, int count)
+		{
+
+			if (string.IsNullOrEmpty(path) || width <= 0 || height <= 0 ||
+				startTimestamp < 0 || step < 0 || count < 0 || (step == 0 && count == 0))
+			{
+				return null;
+			}
+
+			_getImageCollectionCallback = InternalGetImageCollectionCallback;
+			int res = GetFrameCollection(_getImageCollectionCallback, path, width, height, startTimestamp, step, count);
+			return _frameCollection;
+		}
+
+		private static void InternalGetImageCollectionCallback(IntPtr buffer, int bufferSize)
+		{
+			var image = new byte[bufferSize];
+			Marshal.Copy(buffer, image, 0, bufferSize);
+			_frameCollection.Add(image);
+		}
+
 	}
 }

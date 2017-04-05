@@ -25,7 +25,7 @@ int CBaseOperation::GetFileDuration(PCHAR filename){
 	if (avformat_open_input(&fmtCtx, filename, nullptr, nullptr) != 0){
 		return NULL;
 	}
-	if (avformat_find_stream_info(fmtCtx, nullptr) < 0){		
+	if (avformat_find_stream_info(fmtCtx, nullptr) < 0){
 		return NULL;
 	}
 	auto videoStreamIndex = av_find_best_stream(fmtCtx, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
@@ -36,10 +36,13 @@ int CBaseOperation::GetFileDuration(PCHAR filename){
 	if (avcodec_open2(codecCtx, avcodec_find_decoder(codecCtx->codec_id), nullptr) < 0){
 		return NULL;
 	}
+	av_read_frame(fmtCtx, &packet);
+	auto startPts = packet.pts;
 	while (!av_read_frame(fmtCtx, &packet))
 	{
-		duration += packet.duration;
+		duration += packet.pts - startPts;
 	}
+	duration *= av_q2d(fmtCtx->streams[videoStreamIndex]->time_base);
 	av_packet_unref(&packet);
 	av_free_packet(&packet);
 	avformat_close_input(&fmtCtx);
@@ -57,14 +60,14 @@ int CBaseOperation::GetFrame(PCHAR inputFilename, char *buffer, int bufferSize, 
 	}
 
 	av_register_all();
+	clock_t startClock = clock();
 	AVFormatContext *fmtCtx = avformat_alloc_context();
+	AVCodecContext* codecCtx{ nullptr };
 	SwsContext *imgconvertCtx{ nullptr };
 	AVFrame *frame = av_frame_alloc();
-	AVPacket packet;
-	av_init_packet(&packet);
 	AVFrame *frame_rgb = av_frame_alloc();
-	int gotFrame;
-
+	int gotFrame = 0;
+	uint8_t* avpicBuffer{ nullptr };
 	if (avformat_open_input(&fmtCtx, inputFilename, nullptr, nullptr) != 0){
 		error = 2;
 		goto cleanUp;
@@ -81,60 +84,196 @@ int CBaseOperation::GetFrame(PCHAR inputFilename, char *buffer, int bufferSize, 
 		goto cleanUp;
 	}
 
-	auto codecCtx = fmtCtx->streams[videoStreamIndex]->codec;
+	codecCtx = fmtCtx->streams[videoStreamIndex]->codec;
 	if (avcodec_open2(codecCtx, avcodec_find_decoder(codecCtx->codec_id), nullptr) < 0)
 	{
 		error = 2;
 		goto cleanUp;
 	}
-
+	AVPacket packet;
+	av_init_packet(&packet);
+	timestamp = (fmtCtx->start_time + timestamp * 1000) * av_q2d(fmtCtx->streams[videoStreamIndex]->time_base);
 	auto numBytes = avpicture_get_size(AV_PIX_FMT_RGB32, codecCtx->width, codecCtx->height);
-	auto avpicBuffer = static_cast<uint8_t *>(av_malloc(numBytes*sizeof(uint8_t)));
+	avpicBuffer = static_cast<uint8_t *>(av_malloc(numBytes*sizeof(uint8_t)));
 	imgconvertCtx = sws_getContext(codecCtx->width, codecCtx->height, codecCtx->pix_fmt, width, height, AV_PIX_FMT_RGB32, SWS_BICUBIC, NULL, NULL, NULL);
 	avpicture_fill(reinterpret_cast<AVPicture *>(frame_rgb), avpicBuffer, AV_PIX_FMT_RGB32, width, height);
 
-	/*if (timestamp > fmtCtx->duration / AV_TIME_BASE*1000){
-		error = 1;
-		goto cleanUp;
-	}*/
-
-	auto ret = av_seek_frame(fmtCtx, videoStreamIndex, timestamp, AVSEEK_FLAG_FRAME);
-	if (ret <0)
+	clock_t endClock = clock() - startClock;
+	_RPT1(0, "OpenTime: %i\n", endClock);
+	startClock = clock();
+	if (0 > av_seek_frame(fmtCtx, videoStreamIndex, timestamp, AVSEEK_FLAG_FRAME))
 	{
 		error = 1;
 		goto cleanUp;
 	}
-	av_read_frame(fmtCtx, &packet);
-	if (0 > avcodec_decode_video2(codecCtx, frame, &gotFrame, &packet)){
-		error = 2;
-		goto cleanUp;
+	while (!gotFrame){
+		av_read_frame(fmtCtx, &packet);
+		if (packet.stream_index == videoStreamIndex)
+			if (0 > avcodec_decode_video2(codecCtx, frame, &gotFrame, &packet)){
+				error = 2;
+				av_packet_unref(&packet);
+				av_free_packet(&packet);
+				goto cleanUp;
+			}
+		av_packet_unref(&packet);
 	}
-
+	endClock = clock() - startClock;
+	_RPT1(0, "DecodeTime: %i\n", endClock);
 	if (gotFrame){
 		sws_scale(imgconvertCtx, static_cast<const uint8_t* const*>(frame->data), frame->linesize, 0, codecCtx->height, frame_rgb->data, frame_rgb->linesize);
-		error = saveToJpeg(frame_rgb, width, height, buffer,bufferSize);
+		startClock = clock();
+		error = saveToJpeg(frame_rgb, width, height, buffer, bufferSize);
+		endClock = clock() - startClock;
+		_RPT1(0, "SaveToJpgTime: %i\n", endClock);
 		goto cleanUp;
 	}
 cleanUp:
-	av_packet_unref(&packet);
-	av_free_packet(&packet);
-	av_free(avpicBuffer);
-	avcodec_close(codecCtx);
+	if (avpicBuffer)
+		av_free(avpicBuffer);
+	if (codecCtx)
+		avcodec_close(codecCtx);
 	if (imgconvertCtx)
 		sws_freeContext(imgconvertCtx);
 	av_frame_free(&frame);
 	av_frame_free(&frame_rgb);
-	avformat_close_input(&fmtCtx);
-	avformat_free_context(fmtCtx);
+	if (fmtCtx){
+		avformat_close_input(&fmtCtx);
+		avformat_free_context(fmtCtx);
+	}
 	return error;
 }
 
+int CBaseOperation::GetFrameCollection(FGetImageCallback fgetImageCollectionCallback, PCHAR inputFilename, int width, int height, int64_t startTimestamp, int step, int count)
+{
+	int error = 0;
+	if (fgetImageCollectionCallback == nullptr){
+		error = 2;
+		return error;
+	}
+	if (startTimestamp < 0){
+		error = 1;
+		return error;
+	}
+	av_register_all();
+	int64_t stepTimestamp = 0;
+	AVFormatContext *fmtCtx = avformat_alloc_context();
+	AVCodecContext* codecCtx{ nullptr };
+	SwsContext *imgconvertCtx{ nullptr };
+	AVFrame *frame = av_frame_alloc();
+	AVFrame *frame_rgb = av_frame_alloc();
+	int gotFrame = 0;
+	uint8_t* avpicBuffer{ nullptr };
+	if (avformat_open_input(&fmtCtx, inputFilename, nullptr, nullptr) != 0){
+		error = 2;
+		goto cleanUp;
+	}
+
+	if (avformat_find_stream_info(fmtCtx, nullptr) < 0){
+		error = 2;
+		goto cleanUp;
+	}
+
+	auto videoStreamIndex = av_find_best_stream(fmtCtx, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
+	if (videoStreamIndex < 0){
+		error = 2;
+		goto cleanUp;
+	}
+
+	codecCtx = fmtCtx->streams[videoStreamIndex]->codec;
+	if (avcodec_open2(codecCtx, avcodec_find_decoder(codecCtx->codec_id), nullptr) < 0)
+	{
+		error = 2;
+		goto cleanUp;
+	}
+	AVPacket packet;
+	av_init_packet(&packet);
+	startTimestamp = (fmtCtx->start_time + startTimestamp * 1000) * av_q2d(fmtCtx->streams[videoStreamIndex]->time_base);
+	step = step * 1000 * av_q2d(fmtCtx->streams[videoStreamIndex]->time_base); // converting step from ms to stream timebase;
+	auto numBytes = avpicture_get_size(AV_PIX_FMT_RGB32, codecCtx->width, codecCtx->height);
+	avpicBuffer = static_cast<uint8_t *>(av_malloc(numBytes*sizeof(uint8_t)));
+	imgconvertCtx = sws_getContext(codecCtx->width, codecCtx->height, codecCtx->pix_fmt, width, height, AV_PIX_FMT_RGB32, SWS_BICUBIC, NULL, NULL, NULL);
+	avpicture_fill(reinterpret_cast<AVPicture *>(frame_rgb), avpicBuffer, AV_PIX_FMT_RGB32, width, height);
+
+	if (0 > av_seek_frame(fmtCtx, videoStreamIndex, startTimestamp, AVSEEK_FLAG_FRAME))
+	{
+		error = 1;
+		goto cleanUp;
+	}
+
+	for (int i = 0; i < count; i++){
+		stepTimestamp = startTimestamp + step*i;
+
+		while (!gotFrame){
+			if (av_read_frame(fmtCtx, &packet) < 0)
+				break;
+			double delta = packet.pts / stepTimestamp;
+			if (delta > 0.9 && delta < 1.1){
+				if (packet.stream_index == videoStreamIndex)
+					if (0 > avcodec_decode_video2(codecCtx, frame, &gotFrame, &packet)){
+						error = 2;
+						av_packet_unref(&packet);
+						av_free_packet(&packet);
+						goto cleanUp;
+					}
+			}
+			av_packet_unref(&packet);
+
+		}
+		sws_scale(imgconvertCtx, static_cast<const uint8_t* const*>(frame->data), frame->linesize, 0, codecCtx->height, frame_rgb->data, frame_rgb->linesize);
+		error = saveToJpeg(fgetImageCollectionCallback, frame_rgb, width, height);
+		if (error > 0)
+			return error;
+		gotFrame = 0;
+	}
+	goto cleanUp;
+cleanUp:
+	if (avpicBuffer)
+		av_free(avpicBuffer);
+	if (codecCtx)
+		avcodec_close(codecCtx);
+	if (imgconvertCtx)
+		sws_freeContext(imgconvertCtx);
+	av_frame_free(&frame);
+	av_frame_free(&frame_rgb);
+	if (fmtCtx){
+		avformat_close_input(&fmtCtx);
+		avformat_free_context(fmtCtx);
+	}
+	return error;
+}
+int CBaseOperation::saveToJpeg(FGetImageCallback fGetImageCallback, AVFrame *pFrame, int width, int height){
+	GdiplusInit gdiplusinit;
+	CLSID imgClsid;
+	int encoderClsid = GetGdiplusEncoderClsid(L"image/jpeg", &imgClsid);
+	auto image = std::make_unique<Gdiplus::Bitmap>(width, height, pFrame->linesize[0], PixelFormat32bppRGB, pFrame->data[0]);
+	if (encoderClsid != -1){
+		IStream *stream;
+		CreateStreamOnHGlobal(nullptr, TRUE, static_cast<LPSTREAM*>(&stream));
+		if (image->Save(stream, &imgClsid) == Gdiplus::Ok){
+			STATSTG statstg;
+			stream->Stat(&statstg, STATFLAG_DEFAULT);
+			ULARGE_INTEGER streamSize = statstg.cbSize;
+			int bufferSize = streamSize.QuadPart;
+			char* buffer = new char[bufferSize];
+			LARGE_INTEGER zero;
+			zero.QuadPart = 0;
+			stream->Seek(zero, STREAM_SEEK_SET, nullptr);
+			stream->Read(buffer, streamSize.QuadPart, nullptr);
+			stream->Release();
+			fGetImageCallback(buffer, bufferSize);
+			delete[] buffer;
+			return 0;
+		}
+		return 3;
+	}
+	return 3;
+}
 int CBaseOperation::saveToJpeg(AVFrame *pFrame, int width, int height, char *buffer, int bufferSize){
 	GdiplusInit gdiplusinit;
 	CLSID imgClsid;
 	int encoderClsid = GetGdiplusEncoderClsid(L"image/jpeg", &imgClsid);
 	auto image = std::make_unique<Gdiplus::Bitmap>(width, height, pFrame->linesize[0], PixelFormat32bppRGB, pFrame->data[0]);
-	if (encoderClsid != -1){		
+	if (encoderClsid != -1){
 		IStream *stream;
 		CreateStreamOnHGlobal(nullptr, TRUE, static_cast<LPSTREAM*>(&stream));
 		if (image->Save(stream, &imgClsid) == Gdiplus::Ok){
@@ -149,19 +288,12 @@ int CBaseOperation::saveToJpeg(AVFrame *pFrame, int width, int height, char *buf
 				stream->Release();
 				return streamSize.QuadPart;
 			}
-			else{
-				stream->Release();
-				return streamSize.QuadPart*(-1);
-			}
+			stream->Release();
+			return streamSize.QuadPart*(-1);
 		}
-		else{
-			return 3;
-		}
-	}
-	else{
 		return 3;
 	}
-	return 0;
+	return 3;
 }
 //Cancel task
 BOOL CBaseOperation::CancelTask(){

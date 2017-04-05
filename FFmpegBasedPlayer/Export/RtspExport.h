@@ -24,7 +24,8 @@ extern "C"
 	typedef void(CALLBACK *FEndOfOperationCallback)();
 	//Error callback
 	typedef void(CALLBACK *FErrorCallback)(ErrorCode errorCode);
-	
+
+	typedef void(CALLBACK *FGetImageCallback)(char *buffer, int bufferSize);
 	/*
 	*	Cut operation
 	*	Return taskId
@@ -50,6 +51,7 @@ extern "C"
 	// return byte array to buffer with jpeg frame or errNumber
 	RTSPEXPORT_API int WINAPI GetFrame(PCHAR pchInputPath, char *buffer, int bufferSize, int width, int height, int64_t timestamp);
 
+	RTSPEXPORT_API int WINAPI GetFrameCollection(FGetImageCallback fgetImageCallback, PCHAR inputFilename, int width, int height, int64_t startTimestamp, int step, int count);
 	// Cancel operation 
 	RTSPEXPORT_API BOOL WINAPI Cancel(PVOID taskId);
 #ifdef __cplusplus

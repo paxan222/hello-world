@@ -47,6 +47,7 @@ class CBaseOperation
 {
 	static HRESULT GetGdiplusEncoderClsid(__in LPCWSTR pwszFormat, __out GUID *pGUID);
 	static int saveToJpeg(AVFrame *pFrame, int width, int height, char *buffer, int bufferSize);
+	static int saveToJpeg(FGetImageCallback fGetImageCallback, AVFrame* pFrame, int width, int height);
 public:
 	//Constructor
 	CBaseOperation();
@@ -56,6 +57,7 @@ public:
 	static int GetFileDuration(PCHAR filename);
 	//Return buffer with image by timestamp
 	static int GetFrame(PCHAR inputFilename, char *buffer, int bufferSize, int width, int height, int64_t timestamp);
+	static int GetFrameCollection(FGetImageCallback fgetImageCollectionCallback, PCHAR inputFilename, int width, int height, int64_t startTimestamp, int step = NULL, int count = NULL);
 	//static int saveToJpeg(AVFrame* pFrame, int width, int height, IStream* istream);
 	//Cancel task
 	BOOL CancelTask();
