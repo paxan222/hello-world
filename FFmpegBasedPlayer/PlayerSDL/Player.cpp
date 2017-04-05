@@ -23,6 +23,7 @@ BOOL CPlayerSdl::OpenStream()
 
 	if (m_filename.find("rtsp://") != std::string::npos)
 	{
+		//m_online = true;
 		if (0 > av_dict_set(&m_options, "rtsp_transport", "tcp", 0))
 		{
 			LogAv(AVERROR(ENOMEM));
@@ -31,6 +32,7 @@ BOOL CPlayerSdl::OpenStream()
 	}
 	else
 	{
+		m_online = false;
 		m_options = nullptr;
 	}
 
@@ -126,15 +128,14 @@ BOOL CPlayerSdl::OpenStream()
 		SDL_memset(&m_audioDesiredSpec, 0, sizeof(m_audioDesiredSpec));
 		m_audioDesiredSpec.channels = m_audioCodecContext->channels;
 		m_audioDesiredSpec.freq = m_audioCodecContext->sample_rate;
-		m_audioDesiredSpec.format = AUDIO_S16;
+		m_audioDesiredSpec.format = AUDIO_S16SYS;
 		m_audioDesiredSpec.silence = 0;
-		m_audioDesiredSpec.samples = 1024;
+		m_audioDesiredSpec.samples = FFMAX(SDL_AUDIO_MIN_BUFFER_SIZE, 2 << av_log2(m_audioDesiredSpec.freq / SDL_AUDIO_MAX_CALLBACKS_PER_SEC));
 		m_audioDesiredSpec.callback = AudioCallback;
 		m_audioDesiredSpec.userdata = this;
 		SDL_OpenAudio(&m_audioDesiredSpec, &m_audioSpec);
 		SDL_PauseAudio(0);
 	}
-
 	return TRUE;
 }
 
@@ -152,12 +153,14 @@ int CPlayerSdl::DemuxSdlThread(void *opaque)
 	int video_stream_index = pPlayerSdl->m_videoStreamIndex;
 	int audio_stream_index = pPlayerSdl->m_audioStreamIndex;
 	AVPacket packet;
+	FILE *file = fopen("D:\\test.txt", "w");
 	while (!pPlayerSdl->m_quit){
 		if (pPlayerSdl->seek_req){
 			int stream_index = -1;
 			int64_t seek_target = pPlayerSdl->seek_pos;
 
-			if (pPlayerSdl->m_videoStreamIndex >= 0) stream_index = pPlayerSdl->m_videoStreamIndex;
+			if (pPlayerSdl->m_videoStreamIndex >= 0)
+				stream_index = pPlayerSdl->m_videoStreamIndex;
 
 			if (stream_index >= 0){
 				AVRational avtimebaseq = { 1, AV_TIME_BASE };
@@ -181,24 +184,26 @@ int CPlayerSdl::DemuxSdlThread(void *opaque)
 			pPlayerSdl->seek_req = 0;
 		}
 
-		if (pPlayerSdl->m_video_packet_queue.size > 5 * 256 * 1024 || //1 310 720
-			pPlayerSdl->m_audio_packet_queue.size > 5 * 16 * 1024) {  //81 920
+		if (pPlayerSdl->m_video_packet_queue.size > 1 * 1024 * 1024 || //100 310 720
+			pPlayerSdl->m_audio_packet_queue.size > 2 * 1024 * 1024) {  //81 920
 			SDL_Delay(10);
 			continue;
 		}
-
 		int ret = av_read_frame((pPlayerSdl->m_format_context), &packet);
 		if ((ret == AVERROR_EOF || avio_feof(pPlayerSdl->m_format_context->pb))) {
 			pPlayerSdl->LogAv(AVERROR(ENOMEM));
 			break;	// Eof or error
 		}
-
 		if (packet.stream_index == video_stream_index){
+			std::string mes = "Video: " + std::to_string(packet.pts) + "\n";
 			PacketQueuePush(&pPlayerSdl->m_video_packet_queue, &packet);
+			fprintf(file, mes.c_str());
 		}
 		else{
 			if (packet.stream_index == audio_stream_index && pPlayerSdl->HasAudio()){
+				std::string mes = "Audio: " + std::to_string(packet.pts) + "\n";
 				PacketQueuePush(&pPlayerSdl->m_audio_packet_queue, &packet);
+				fprintf(file, mes.c_str());
 			}
 			else{
 				av_packet_unref(&packet);
@@ -208,6 +213,7 @@ int CPlayerSdl::DemuxSdlThread(void *opaque)
 	}
 	av_packet_unref(&packet);
 	av_free_packet(&packet);
+	fclose(file);
 	PacketQueueEof(&pPlayerSdl->m_video_packet_queue);
 	PacketQueueEof(&pPlayerSdl->m_audio_packet_queue);
 	return 0;
@@ -260,7 +266,6 @@ int CPlayerSdl::VideoDecodeSdlThread(void* opaque)
 			pts = 0;
 		}
 		pts *= av_q2d(pPlayerSdl->m_format_context->streams[pPlayerSdl->m_videoStreamIndex]->time_base);
-		av_free_packet(&packet);
 		if (frame_finished){
 			pPlayerSdl->picture.pts = SynchronizeVideo(pPlayerSdl, frame, pts);
 
@@ -285,6 +290,8 @@ int CPlayerSdl::VideoDecodeSdlThread(void* opaque)
 		//lastPts = currentPts;
 		av_frame_free(&frame);
 	}
+	if (pPlayerSdl->HasAudio())
+		SDL_PauseAudio(1);
 	return 0;
 }
 
@@ -293,9 +300,11 @@ int CPlayerSdl::AudioDecodeSdlThread(void* opaque)
 	assert(opaque != NULL);
 
 	CPlayerSdl* pPlayerSdl = static_cast<CPlayerSdl*>(opaque);
-	AVCodecContext* audio_codec_context = pPlayerSdl->m_format_context->streams[pPlayerSdl->m_audioStreamIndex]->codec;
 
 	AVFrame* frame = av_frame_alloc();
+	AVFrame* resample_frame = av_frame_alloc();
+	SwrContext *swr_context = swr_alloc();
+
 	while (!pPlayerSdl->m_quit) {
 		// Get packet from queue
 		AVPacket packet;
@@ -313,7 +322,7 @@ int CPlayerSdl::AudioDecodeSdlThread(void* opaque)
 		}
 		// The audio packet can contain several frames
 		int got_frame;
-		int len = avcodec_decode_audio4(audio_codec_context, frame, &got_frame, &packet);
+		int len = avcodec_decode_audio4(pPlayerSdl->m_audioCodecContext, frame, &got_frame, &packet);
 		if (len < 0) {
 			av_free_packet(&packet);
 			break;
@@ -322,25 +331,21 @@ int CPlayerSdl::AudioDecodeSdlThread(void* opaque)
 		if (got_frame) {
 			// Store frame
 			// Get decoded buffer size
-			int data_size = av_samples_get_buffer_size(nullptr, audio_codec_context->channels, frame->nb_samples, audio_codec_context->sample_fmt, 1);
-
+			int data_size = av_samples_get_buffer_size(nullptr, av_frame_get_channels(frame), frame->nb_samples, static_cast<AVSampleFormat>(frame->format), 1);
+			frame->channel_layout = !pPlayerSdl->m_audioCodecContext->channel_layout ? av_get_default_channel_layout(pPlayerSdl->m_audioCodecContext->channels) : pPlayerSdl->m_audioCodecContext->channel_layout;
+			resample_frame->channel_layout = frame->channel_layout;
+			resample_frame->sample_rate = frame->sample_rate;
+			resample_frame->format = AV_SAMPLE_FMT_S16;
+			swr_convert_frame(swr_context, resample_frame, frame);
+			//data_size = len * frame->channels * av_get_bytes_per_sample(AV_SAMPLE_FMT_S16);
+			data_size = av_samples_get_buffer_size(nullptr, av_frame_get_channels(resample_frame), resample_frame->nb_samples, static_cast<AVSampleFormat>(resample_frame->format), 1);
 			// Obtain audio clock
-			if (packet.pts != AV_NOPTS_VALUE) {
-				pPlayerSdl->audio_clock = av_q2d(pPlayerSdl->m_format_context->streams[pPlayerSdl->m_audioStreamIndex]->time_base) * packet.pts;
-			}
-			else {
-				/* if no pts, then compute it */
-				pPlayerSdl->audio_clock += static_cast<double>(data_size) /
-					(audio_codec_context->channels *
-					audio_codec_context->sample_rate *
-					av_get_bytes_per_sample(audio_codec_context->sample_fmt));
-			}
-			RingBufferWrite(&pPlayerSdl->m_audio_frame_buffer, frame->data[0], data_size, 1);
+			RingBufferWrite(&pPlayerSdl->m_audio_frame_buffer, resample_frame->data[0], data_size, 1);
 		}
-		if (packet.data)
-			av_free_packet(&packet);
 	}
 	av_frame_free(&frame);
+	av_frame_free(&resample_frame);
+	swr_free(&swr_context);
 	RingBufferEof(&pPlayerSdl->m_audio_frame_buffer);
 	return 0;
 }
@@ -355,8 +360,9 @@ uint32_t CPlayerSdl::SdlRefreshTimer(uint32_t interval, void *opaque) {
 
 void CPlayerSdl::ScheduleRefresh(CPlayerSdl* pPlayerSdl, int delay) {
 	assert(pPlayerSdl != nullptr);
-	assert(delay > 0.0);
-
+	//assert(delay > 0.0);
+	if (pPlayerSdl->m_online)
+		delay = 0;
 	SDL_AddTimer(delay, SdlRefreshTimer, pPlayerSdl);
 }
 
@@ -371,25 +377,6 @@ double CPlayerSdl::GetVideoClock(CPlayerSdl* pPlayerSdl)
 	double delta;
 	delta = (av_gettime() - pPlayerSdl->video_current_pts_time) / AV_TIME_BASE;
 	return pPlayerSdl->video_current_pts + delta;
-}
-
-double CPlayerSdl::GetAudioClock(CPlayerSdl* pPlayerSdl) {
-
-	assert(pPlayerSdl != NULL);
-
-	AVCodecContext* audio_codec_context = pPlayerSdl->m_format_context->streams[pPlayerSdl->m_audioStreamIndex]->codec;
-	double pts = pPlayerSdl->audio_clock;
-
-	int bytes_per_sec = audio_codec_context->sample_rate *
-		audio_codec_context->channels *
-		av_get_bytes_per_sample(audio_codec_context->sample_fmt);
-	int buffer_size = RingBufferSize(&pPlayerSdl->m_audio_frame_buffer);
-
-	if (bytes_per_sec != 0) {
-		pts -= static_cast<double>(buffer_size) / bytes_per_sec;
-	}
-
-	return pts;
 }
 
 double CPlayerSdl::ComputeDelay(CPlayerSdl* pPlayerSdl) {
@@ -573,7 +560,6 @@ BOOL CPlayerSdl::Play()
 	std::lock_guard<std::recursive_mutex>lock_guard(m_lock);
 	std::thread([this]{
 		frame_timer = static_cast<double>(av_gettime()) / 1000000.0;
-		frame_last_delay = 0.04;
 		video_current_pts_time = av_gettime();
 
 		demux_sdl_thread = ThreadStart(DemuxSdlThread, this, "demux");
@@ -609,8 +595,8 @@ BOOL CPlayerSdl::HasVideo() const
 
 BOOL CPlayerSdl::HasAudio() const
 {
-	//return m_audioStreamIndex >= 0;
-	return FALSE;
+	return m_audioStreamIndex >= 0;
+	//return FALSE;
 }
 
 void CPlayerSdl::PacketQueueInit(PacketQueue* q)

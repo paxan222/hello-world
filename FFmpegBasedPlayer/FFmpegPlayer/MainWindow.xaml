@@ -19,7 +19,7 @@
 			</Grid.RowDefinitions>
 			<StackPanel Grid.Row="0">
 				<Label HorizontalAlignment="Center">Play stream/file</Label>
-				<TextBox x:Name="PathTextBox">D:/Shares/0/recordFile3.mkv</TextBox>
+				<TextBox x:Name="PathTextBox">D:/Shares/0/SoundCheck/AAC.mkv</TextBox>
 				<Button x:Name="PlayStreamButton" Content="Play stream" Click="PlayStreamButton_OnClick"></Button>
 			</StackPanel>
 			<StackPanel Grid.Row="1">

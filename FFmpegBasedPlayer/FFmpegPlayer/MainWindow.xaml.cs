@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
+using System.Text;
 using System.Windows;
 using RtspExportWrap;
 using RVI.RtspRecorderWrap;
@@ -48,9 +50,10 @@ namespace FFmpegPlayer
 		private void OpenImageButton_OnClick(object sender, RoutedEventArgs e)
 		{
 			_path = PathImageTextBox.Text;
+			var time = Int32.Parse(TimestampImageTextBox.Text);
 			var childWindow = new ImageWindow();
 			_windowList.Add(childWindow);
-			childWindow.Show(_path);
+			childWindow.Show(_path, time);
 		}
 
 		private void StartCutButton_OnClick(object sender, RoutedEventArgs e)
@@ -71,6 +74,7 @@ namespace FFmpegPlayer
 			_recieveDataCallback += RecieveDataCallback;
 			_errorCallback += ErrorCallback;
 			RtspRecorder.StartCallbackRecord(_rtspPath, 0, _recieveDataCallback, null, _errorCallback);
+			//RtspRecorder.StartFileRecord(_rtspPath, "D:\\TestVideo\\Record\\test.mkv", 15000, _errorCallback);
 		}
 
 		private FileStream fsStream;
@@ -78,38 +82,32 @@ namespace FFmpegPlayer
 		private int _fileSize = 0;
 		private void RecieveDataCallback(IntPtr buf, int bufSize, bool isHeaderData)
 		{
-			//var bytes = new byte[bufSize];
-			//Marshal.Copy(buf, bytes, 0, bufSize);
-			//var dir = string.Format("{0}\\RecordFiles", Directory.GetCurrentDirectory());
+			var bytes = new byte[bufSize];
+			Marshal.Copy(buf, bytes, 0, bufSize);
+			var dir = string.Format("{0}\\RecordFiles", Directory.GetCurrentDirectory());
 
-			//if (!Directory.Exists(dir))
-			//	Directory.CreateDirectory(dir);
+			if (!Directory.Exists(dir))
+				Directory.CreateDirectory(dir);
 			if (isHeaderData)
 			{
-				//if (writer != null)
-				//{
-				//	writer.Close();
-				//	if (fsStream != null)
-				//		fsStream.Close();
-				//}
-				//_path = string.Format("{0}\\recordFile{1}.mkv", dir, _count);
-				//fsStream = new FileStream(_path, FileMode.Append);
-				//writer = new BinaryWriter(fsStream, Encoding.UTF8);
-				//_count++;
+				if (writer != null)
+				{
+					writer.Close();
+					if (fsStream != null)
+						fsStream.Close();
+				}
+				_path = string.Format("{0}\\recordFile{1}.mkv", dir, _count);
+				fsStream = new FileStream(_path, FileMode.Append);
+				writer = new BinaryWriter(fsStream, Encoding.UTF8);
+				_count++;
 				_isHeaderCall = false;
 			}
-			//if (_path != string.Empty)
-			//{
-			//	writer.Write(bytes);
-			//}
-			//var fi = new FileInfo(_path);
-			//if (fi.Length > 1000000 && !_isHeaderCall)
-			//{
-			//	RtspRecorder.WriteHeader(_rtspPath);
-			//	_isHeaderCall = true;
-			//}
+			if (_path != string.Empty)
+			{
+				writer.Write(bytes);
+			}
 			_fileSize += bufSize;
-			if (_fileSize > 1000000 && !_isHeaderCall)
+			if (_fileSize > 10000000 && !_isHeaderCall)
 			{
 				RtspRecorder.WriteHeader(_rtspPath);
 				_isHeaderCall = true;

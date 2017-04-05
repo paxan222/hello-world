@@ -20,17 +20,21 @@ extern "C" {
 #include <libavformat\avformat.h>
 #include <libavformat\avio.h>
 #include <libavutil\time.h>
+#include <libswresample\swresample.h>
 }
 #pragma comment (lib, "avformat.lib")
 #pragma comment (lib, "avcodec.lib")
 #pragma comment (lib, "avutil.lib")
+#pragma comment (lib, "swresample.lib");
 
 #include "PlayerSdlApi.h"
 #pragma comment(lib, "SDL2")
 
+#define SDL_AUDIO_MIN_BUFFER_SIZE 512
+#define SDL_AUDIO_MAX_CALLBACKS_PER_SEC 30
 
-#define AUDIO_BUF_SIZE ((192000 * 3)/20)
-#define MAX_AUDIO_BUF_SIZE (192000 * 4)
+#define AUDIO_BUF_SIZE ((48100 * 3)/2)
+#define MAX_AUDIO_BUF_SIZE (48100 * 4)
 #define FF_REFRESH_EVENT (SDL_USEREVENT + 1)
 /* no AV sync correction is done if below the AV sync threshold */
 #define AV_SYNC_THRESHOLD 0.01
@@ -127,6 +131,7 @@ class CPlayerSdl
 	int seek_flags;
 	AVPacket flush_pkt;
 	bool m_renderOn{ true };
+	bool m_online{false};
 public:
 	CPlayerSdl(PCHAR filename, HWND h_MainWindow)
 	{
@@ -177,6 +182,7 @@ private:
 	static int DemuxSdlThread(void* opaque);
 	static double SynchronizeVideo(CPlayerSdl* pPlayerSdl, AVFrame* frame, double pts);
 	static int VideoDecodeSdlThread(void* opaque);
+	static void AudioCallback2(void* userdata, uint8_t* stream, int len);
 	static int AudioDecodeSdlThread(void* opaque);
 	static uint32_t SdlRefreshTimer(uint32_t interval, void* opaque);
 	static void ScheduleRefresh(CPlayerSdl* pPlayerSdl, int delay);
