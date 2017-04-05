@@ -8,11 +8,17 @@ static Container<std::string, PVOID> g_rtsp_recorder_container{ g_rtsp_recorder_
 std::recursive_mutex _api_lock;
 
 RTSPRECORDER_API PVOID WINAPI StartFileRecord(PCHAR pchInputFilename, PCHAR pchOutputFilename, int timeout, FErrorCallback fErrorCallback){
+	std::lock_guard<std::recursive_mutex> locker(_api_lock);
+	if (g_rtsp_recorder_container.hasItem(pchInputFilename))
+	{
+		return FALSE;
+	}
 	CBaseRecorder *recorder;
 	recorder = new CFileRecorder(pchInputFilename, timeout, pchOutputFilename, fErrorCallback);
 	if (recorder->Open() == FALSE){
 		goto fail;
 	}
+	g_rtsp_recorder_container.add(pchInputFilename, recorder);
 	if (!recorder->StartRecord()){
 		goto fail;
 	}

@@ -1,6 +1,6 @@
 #include "BaseRecorder.h"
 
-#define BUFFER_SIZE 32*1024
+#define BUFFER_SIZE 1024*1024
 
 class CCallbackRecorder : public CBaseRecorder
 {

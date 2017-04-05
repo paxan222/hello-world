@@ -104,11 +104,12 @@ BOOL CCallbackRecorder::SendHeader(){
 /*private*/
 BOOL CCallbackRecorder::WriteHeaderTo(AVFormatContext *&dstFmtCtx){
 	if (dstFmtCtx != nullptr){
-		if (m_outputVideoStream)
+		if (m_outputVideoStream){
 			avcodec_close(m_outputVideoStream->codec);
-		if (m_outputAudioStream)
+		}
+		if (m_outputAudioStream){
 			avcodec_close(m_outputAudioStream->codec);
-		av_write_trailer(dstFmtCtx);
+		}
 		avformat_free_context(dstFmtCtx);
 		dstFmtCtx = nullptr;
 	}
@@ -125,6 +126,7 @@ BOOL CCallbackRecorder::WriteHeaderTo(AVFormatContext *&dstFmtCtx){
 
 	FillOutputStreamIndex(dstFmtCtx);
 
+	m_outputVideoStream->avg_frame_rate = m_inputVideoStream->avg_frame_rate;
 	//Set up flag to true, to send to callback that it is new file	
 	m_isHeaderData = true;
 	auto ret = avformat_write_header(dstFmtCtx, nullptr);

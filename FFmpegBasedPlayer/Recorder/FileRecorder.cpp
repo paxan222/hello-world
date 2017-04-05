@@ -3,6 +3,7 @@
 CFileRecorder::CFileRecorder(PCHAR rtspStream, int connectionTimeout, PCHAR outputFilename, FErrorCallback fErrorCallback)
 	:CBaseRecorder(fErrorCallback)
 {
+	m_rtspPath = rtspStream;
 	m_outputFilename = outputFilename;
 }
 
