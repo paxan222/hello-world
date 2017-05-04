@@ -1,24 +1,56 @@
 #include "Player.h"
 
+static std::recursive_mutex m_lockLog;
+static std::string logFilename;
+static INT64 logFilesize = 0;
+static INT logCount = 0;
+static int logTime = 0;
+
 void CPlayerSdl::Log(std::string message)
 {
-	std::lock_guard<std::recursive_mutex>lock_guard(m_lock);
-	std::clog << message << "\n";
+	std::lock_guard<std::recursive_mutex>lock_guard(m_lockLog);
+	fputs(message.c_str(), file);
+	fflush(file);
 }
 
 void CPlayerSdl::LogAv(int ret)
 {
-	std::lock_guard<std::recursive_mutex>lock_guard(m_lock);
-	char err_buf[255];
-	av_strerror(ret, err_buf, sizeof(err_buf));
-	std::clog << err_buf << "\n";
+	/*std::lock_guard<std::recursive_mutex>lock_guard(m_lockLog);
+	char line[255];
+	av_strerror(ret, line, sizeof(line));
+	fputs(line, file);
+	fflush(file);*/
+}
+
+void CPlayerSdl::FfmpegLog(void *ptr, int level, const char *fmt, va_list vl)
+{
+	std::lock_guard<std::recursive_mutex>lock_guard(m_lockLog);
+	if (logFilesize > 1024000000){
+		fclose(file);
+		logFilename = "Logs/" + std::to_string(logTime) + "_log_" + std::to_string(logCount) + ".txt";
+		fopen(logFilename.c_str(), "w");
+		logCount++;
+		logFilesize = 0;
+	}
+	char line[1024];
+	static int print_prefix = 1;
+	av_log_format_line(ptr, level, fmt, vl, line, sizeof(line), &print_prefix);
+	if (/*(AV_LOG_TRACE == level ) ||*/ level <= AV_LOG_ERROR){
+		fputs(line, file);
+		fflush(file);
+	}
+	logFilesize += sizeof(line);
 }
 
 BOOL CPlayerSdl::OpenStream()
 {
+	logTime = GetCurrentTime();
+	logFilename = "Logs/" + std::to_string(logTime) + "_log.txt";
+	file = fopen(logFilename.c_str(), "w");
+	av_log_set_callback(this->FfmpegLog);
 	std::lock_guard<std::recursive_mutex>lock_guard(m_lock);
-	Log("OpenStream has called");
-	Log(m_filename);
+	Log("OpenStream has called\n");
+	Log(m_filename + "\n");
 	static CAVInitializer sAVInit;
 
 	if (m_filename.find("rtsp://") != std::string::npos)
@@ -29,10 +61,14 @@ BOOL CPlayerSdl::OpenStream()
 			LogAv(AVERROR(ENOMEM));
 			return FALSE;
 		}
+		if (0 > av_dict_set(&m_options, "probesize", "65535", 0))
+		{
+			LogAv(AVERROR(ENOMEM));
+			return FALSE;
+		}
 	}
 	else
 	{
-		m_online = false;
 		m_options = nullptr;
 	}
 
@@ -70,7 +106,6 @@ BOOL CPlayerSdl::OpenStream()
 
 	if (HasVideo())
 	{
-		SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER);
 		m_videoCodecContext = m_format_context->streams[m_videoStreamIndex]->codec;
 		m_videoCodec = avcodec_find_decoder(m_videoCodecContext->codec_id);
 		if (m_videoCodec == nullptr)
@@ -97,13 +132,14 @@ BOOL CPlayerSdl::OpenStream()
 		m_fps = av_q2d(av_guess_frame_rate(m_format_context, m_format_context->streams[m_videoStreamIndex], nullptr));
 		m_pixelFormat = &m_videoCodecContext->pix_fmt;
 		m_videoCodecContext->refs = 1;
-
 		sdlWindow = SDL_CreateWindowFrom(m_hMainWindow);
 		assert(sdlWindow != nullptr);
 		sdlRenderer = SDL_CreateRenderer(sdlWindow, -1, SDL_RENDERER_TARGETTEXTURE);
 		assert(sdlRenderer != nullptr);
 		picture.texture = SDL_CreateTexture(sdlRenderer, SDL_PIXELFORMAT_YV12, SDL_TEXTUREACCESS_STREAMING, m_videoCodecContext->width, m_videoCodecContext->height);
 		assert(picture.texture != nullptr);
+
+		SDL_AddEventWatch(refreshRender, sdlWindow);
 	}
 	if (HasAudio())
 	{
@@ -123,8 +159,6 @@ BOOL CPlayerSdl::OpenStream()
 			//if (m_cbOnError)
 			//	std::thread([this]{m_cbOnError("can't open audio codec"); }).detach();
 		}
-		if (SDL_Init(SDL_INIT_AUDIO))
-			return FALSE;
 		SDL_memset(&m_audioDesiredSpec, 0, sizeof(m_audioDesiredSpec));
 		m_audioDesiredSpec.channels = m_audioCodecContext->channels;
 		m_audioDesiredSpec.freq = m_audioCodecContext->sample_rate;
@@ -137,6 +171,28 @@ BOOL CPlayerSdl::OpenStream()
 		SDL_PauseAudio(0);
 	}
 	return TRUE;
+}
+
+
+int CPlayerSdl::refreshRender(void* data, SDL_Event* event)
+{
+	CPlayerSdl* pPlayerSdl = (CPlayerSdl*)data;
+	if (event->type == FF_REFRESH_EVENT && event->user.data1 == pPlayerSdl)
+	VideoRefreshTimer(pPlayerSdl);
+	if (event->type == SDL_WINDOWEVENT &&
+		event->window.event == SDL_WINDOWEVENT_RESIZED) {
+		SDL_Window* win = SDL_GetWindowFromID(event->window.windowID);
+		if (win == pPlayerSdl->sdlWindow) {
+			SDL_LockMutex(pPlayerSdl->render_mutex);
+			SDL_DestroyTexture(pPlayerSdl->picture.texture);
+			SDL_DestroyRenderer(pPlayerSdl->sdlRenderer);
+			pPlayerSdl->sdlRenderer = SDL_CreateRenderer(pPlayerSdl->sdlWindow, -1, SDL_RENDERER_TARGETTEXTURE);
+			pPlayerSdl->picture.texture = SDL_CreateTexture(pPlayerSdl->sdlRenderer, SDL_PIXELFORMAT_YV12, SDL_TEXTUREACCESS_STREAMING, pPlayerSdl->m_videoCodecContext->width, pPlayerSdl->m_videoCodecContext->height);
+			SDL_UnlockMutex(pPlayerSdl->render_mutex);
+			VideoRefreshTimer(pPlayerSdl);
+		}
+	}
+	return 0;
 }
 
 void CPlayerSdl::AudioCallback(void* userdata, uint8_t* stream, int len) {
@@ -154,6 +210,7 @@ int CPlayerSdl::DemuxSdlThread(void *opaque)
 	int audio_stream_index = pPlayerSdl->m_audioStreamIndex;
 	AVPacket packet;
 	FILE *file = fopen("D:\\test.txt", "w");
+	bool pause{ false };
 	while (!pPlayerSdl->m_quit){
 		if (pPlayerSdl->seek_req){
 			int stream_index = -1;
@@ -184,8 +241,8 @@ int CPlayerSdl::DemuxSdlThread(void *opaque)
 			pPlayerSdl->seek_req = 0;
 		}
 
-		if (pPlayerSdl->m_video_packet_queue.size > 1 * 1024 * 1024 || //100 310 720
-			pPlayerSdl->m_audio_packet_queue.size > 2 * 1024 * 1024) {  //81 920
+		if (pPlayerSdl->m_video_packet_queue.size > 10 * 1024 * 1024 || //100 310 720
+			pPlayerSdl->m_audio_packet_queue.size > 20 * 1024 * 1024) {  //81 920
 			SDL_Delay(10);
 			continue;
 		}
@@ -195,15 +252,20 @@ int CPlayerSdl::DemuxSdlThread(void *opaque)
 			break;	// Eof or error
 		}
 		if (packet.stream_index == video_stream_index){
-			std::string mes = "Video: " + std::to_string(packet.pts) + "\n";
+			std::string mes = "VideoPts: " + std::to_string(packet.pts) + "\n";
+			fprintf(file, mes.c_str());
+			mes = "VideoSize: " + std::to_string(packet.size) + "\n";
+			fprintf(file, mes.c_str());
 			PacketQueuePush(&pPlayerSdl->m_video_packet_queue, &packet);
 			fprintf(file, mes.c_str());
 		}
 		else{
 			if (packet.stream_index == audio_stream_index && pPlayerSdl->HasAudio()){
-				std::string mes = "Audio: " + std::to_string(packet.pts) + "\n";
-				PacketQueuePush(&pPlayerSdl->m_audio_packet_queue, &packet);
+				std::string mes = "AudioPts: " + std::to_string(packet.pts) + "\n";
 				fprintf(file, mes.c_str());
+				mes = "AudioSize: " + std::to_string(packet.size) + "\n";
+				fprintf(file, mes.c_str());
+				PacketQueuePush(&pPlayerSdl->m_audio_packet_queue, &packet);
 			}
 			else{
 				av_packet_unref(&packet);
@@ -283,11 +345,10 @@ int CPlayerSdl::VideoDecodeSdlThread(void* opaque)
 			SDL_UpdateYUVTexture(pPlayerSdl->picture.texture, nullptr, frame->data[0], frame->linesize[0], frame->data[1], frame->linesize[1], frame->data[2], frame->linesize[2]);
 			SDL_UnlockMutex(pPlayerSdl->render_mutex);
 			SDL_LockMutex(pPlayerSdl->picture.mutex);
-			pPlayerSdl->picture.ready = 1;
+			pPlayerSdl->picture.ready = true;
 			SDL_CondSignal(pPlayerSdl->picture.condition);
 			SDL_UnlockMutex(pPlayerSdl->picture.mutex);
 		}
-		//lastPts = currentPts;
 		av_frame_free(&frame);
 	}
 	if (pPlayerSdl->HasAudio())
@@ -331,14 +392,13 @@ int CPlayerSdl::AudioDecodeSdlThread(void* opaque)
 		if (got_frame) {
 			// Store frame
 			// Get decoded buffer size
-			int data_size = av_samples_get_buffer_size(nullptr, av_frame_get_channels(frame), frame->nb_samples, static_cast<AVSampleFormat>(frame->format), 1);
 			frame->channel_layout = !pPlayerSdl->m_audioCodecContext->channel_layout ? av_get_default_channel_layout(pPlayerSdl->m_audioCodecContext->channels) : pPlayerSdl->m_audioCodecContext->channel_layout;
 			resample_frame->channel_layout = frame->channel_layout;
 			resample_frame->sample_rate = frame->sample_rate;
 			resample_frame->format = AV_SAMPLE_FMT_S16;
 			swr_convert_frame(swr_context, resample_frame, frame);
 			//data_size = len * frame->channels * av_get_bytes_per_sample(AV_SAMPLE_FMT_S16);
-			data_size = av_samples_get_buffer_size(nullptr, av_frame_get_channels(resample_frame), resample_frame->nb_samples, static_cast<AVSampleFormat>(resample_frame->format), 1);
+			auto data_size = av_samples_get_buffer_size(nullptr, av_frame_get_channels(resample_frame), resample_frame->nb_samples, static_cast<AVSampleFormat>(resample_frame->format), 1);
 			// Obtain audio clock
 			RingBufferWrite(&pPlayerSdl->m_audio_frame_buffer, resample_frame->data[0], data_size, 1);
 		}
@@ -361,8 +421,6 @@ uint32_t CPlayerSdl::SdlRefreshTimer(uint32_t interval, void *opaque) {
 void CPlayerSdl::ScheduleRefresh(CPlayerSdl* pPlayerSdl, int delay) {
 	assert(pPlayerSdl != nullptr);
 	//assert(delay > 0.0);
-	if (pPlayerSdl->m_online)
-		delay = 0;
 	SDL_AddTimer(delay, SdlRefreshTimer, pPlayerSdl);
 }
 
@@ -429,11 +487,11 @@ void CPlayerSdl::VideoRefreshTimer(CPlayerSdl* pPlayerSdl) {
 	}
 	else{
 		double delay = ComputeDelay(pPlayerSdl);
-		ScheduleRefresh(pPlayerSdl, static_cast<int>(delay * 1000 + 0.5));
+		ScheduleRefresh(pPlayerSdl, delay * 1000 + 0.5);
 		// Show the picture
 		VideoDisplay(pPlayerSdl);
 		SDL_LockMutex(pPlayerSdl->picture.mutex);
-		pPlayerSdl->picture.ready = 0;
+		pPlayerSdl->picture.ready = false;
 		SDL_CondSignal(pPlayerSdl->picture.condition);
 		SDL_UnlockMutex(pPlayerSdl->picture.mutex);
 	}
@@ -457,59 +515,64 @@ void CPlayerSdl::StreamSeek(CPlayerSdl* pPlayerSdl, int64_t pos, int rel)
 
 void CPlayerSdl::EventLoop(CPlayerSdl* pPlayerSdl) {
 	assert(pPlayerSdl != NULL);
-	SDL_Event event;
 	double incr, pos;
-	HWND overlap_window_hwnd;
-	HWND main_window_hwnd = pPlayerSdl->m_hMainWindow;
-	RECT main_window_rect;
-	RECT overlap_window_rect;
-	while (!pPlayerSdl->m_quit) {
-		SDL_WaitEvent(&event);
-		switch (event.type) {
-			case SDL_QUIT:
-				Quit(pPlayerSdl);
-				break;
-			case FF_REFRESH_EVENT:
-				VideoRefreshTimer(pPlayerSdl);
-				break;
-			case SDL_WINDOWEVENT:
-				switch (event.window.event){
-					case SDL_WINDOWEVENT_RESIZED:
-						SDL_LockMutex(pPlayerSdl->render_mutex);
-						SDL_DestroyTexture(pPlayerSdl->picture.texture);
-						SDL_DestroyRenderer(pPlayerSdl->sdlRenderer);
-						pPlayerSdl->sdlRenderer = SDL_CreateRenderer(pPlayerSdl->sdlWindow, -1, SDL_RENDERER_TARGETTEXTURE);
-						pPlayerSdl->picture.texture = SDL_CreateTexture(pPlayerSdl->sdlRenderer, SDL_PIXELFORMAT_YV12, SDL_TEXTUREACCESS_STREAMING, pPlayerSdl->m_videoCodecContext->width, pPlayerSdl->m_videoCodecContext->height);
-						SDL_UnlockMutex(pPlayerSdl->render_mutex);
-						VideoRefreshTimer(pPlayerSdl);
-						break;
-					case SDL_WINDOWEVENT_MINIMIZED:
-						pPlayerSdl->m_renderOn = false;
-						break;
-					case SDL_WINDOWEVENT_RESTORED:
-						pPlayerSdl->m_renderOn = true;
-						break;/*
-					default:
+	bool pause{ true };
+	while (!pPlayerSdl->m_quit){
+		SDL_Event event;
+		while (SDL_WaitEvent(&event)) {
+			switch (event.type) {
+				case SDL_QUIT:
+					Quit(pPlayerSdl);
+					break;
+				case FF_REFRESH_EVENT:
 					VideoRefreshTimer(pPlayerSdl);
-					break;*/
-				}
-				break;
-			case SDL_KEYDOWN:
-				switch (event.key.keysym.sym) {
-					case SDLK_LEFT:
-						incr = -10.0;
-						goto do_seek;
-					case SDLK_RIGHT:
-						incr = 10.0;
-						goto do_seek;
-					do_seek:
-						pos = GetVideoClock(pPlayerSdl);
-						pos += incr;
-						StreamSeek(pPlayerSdl, static_cast<int64_t>(pos*AV_TIME_BASE), incr);
-						break;
-					default:
-						break;
-				}
+					break;
+				case SDL_WINDOWEVENT:
+					switch (event.window.event){
+						case SDL_WINDOWEVENT_RESIZED:
+							SDL_LockMutex(pPlayerSdl->render_mutex);
+							SDL_DestroyTexture(pPlayerSdl->picture.texture);
+							SDL_DestroyRenderer(pPlayerSdl->sdlRenderer);
+							pPlayerSdl->sdlRenderer = SDL_CreateRenderer(pPlayerSdl->sdlWindow, -1, SDL_RENDERER_TARGETTEXTURE);
+							pPlayerSdl->picture.texture = SDL_CreateTexture(pPlayerSdl->sdlRenderer, SDL_PIXELFORMAT_YV12, SDL_TEXTUREACCESS_STREAMING, pPlayerSdl->m_videoCodecContext->width, pPlayerSdl->m_videoCodecContext->height);
+							SDL_UnlockMutex(pPlayerSdl->render_mutex);
+							VideoRefreshTimer(pPlayerSdl);
+							break;
+						case SDL_WINDOWEVENT_MINIMIZED:
+							pPlayerSdl->m_renderOn = false;
+							break;
+						case SDL_WINDOWEVENT_RESTORED:
+							pPlayerSdl->m_renderOn = true;
+							break;
+					}
+					break;
+				case SDL_KEYDOWN:
+					switch (event.key.keysym.sym) {
+						case SDLK_LEFT:
+							incr = -10.0;
+							goto do_seek;
+						case SDLK_RIGHT:
+							incr = 10.0;
+							goto do_seek;
+						do_seek:
+							pos = GetVideoClock(pPlayerSdl);
+							pos += incr;
+							StreamSeek(pPlayerSdl, static_cast<int64_t>(pos*AV_TIME_BASE), incr);
+							break;
+						case SDLK_SPACE:
+							pPlayerSdl->m_pause = !pPlayerSdl->m_pause;
+							if (pause){
+								av_read_pause(pPlayerSdl->m_format_context);
+							}
+							if (!pause){
+								av_read_play(pPlayerSdl->m_format_context);
+							}
+							pause = !pause;
+							break;
+						default:
+							break;
+					}
+			}
 		}
 	}
 }
@@ -534,6 +597,7 @@ int CPlayerSdl::ThreadWait(SDL_Thread* thread, const char* name)
 
 void CPlayerSdl::Clear()
 {
+	fclose(file);
 	PacketQueueDeinit(&m_video_packet_queue);
 	PacketQueueDeinit(&m_audio_packet_queue);
 	RingBufferDeinit(&m_audio_frame_buffer);
@@ -586,6 +650,15 @@ BOOL CPlayerSdl::Play()
 BOOL CPlayerSdl::Stop()
 {
 	return SDL_QUIT;
+}
+
+BOOL CPlayerSdl::Pause(bool pause)
+{
+	if (pause)
+		av_read_pause(m_format_context);
+	else
+		av_read_play(m_format_context);
+	return TRUE;
 }
 
 BOOL CPlayerSdl::HasVideo() const
@@ -717,7 +790,7 @@ void CPlayerSdl::PacketQueueEof(PacketQueue* q)
 	assert(q != NULL);
 
 	SDL_LockMutex(q->mutex);
-	q->eof = 1;
+	q->eof = true;
 	SDL_CondBroadcast(q->cond);
 	SDL_UnlockMutex(q->mutex);
 }
@@ -889,7 +962,7 @@ void CPlayerSdl::RingBufferEof(RingBuffer* rb)
 	assert(rb != NULL);
 
 	SDL_LockMutex(rb->mutex);
-	rb->eof = 1;
+	rb->eof = true;
 	SDL_CondBroadcast(rb->wcond);
 	SDL_UnlockMutex(rb->mutex);
 }

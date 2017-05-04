@@ -88,6 +88,7 @@ CCutOperation::CCutOperation(PCHAR inputFilename, PCHAR outputFilename, int star
 //Destructor
 CCutOperation::~CCutOperation()
 {
+
 }
 
 /*-----------------Private---------------------------------------*/

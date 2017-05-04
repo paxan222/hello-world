@@ -32,13 +32,18 @@ namespace FFmpegPlayer
 		private void PlayStreamButton_OnClick(object sender, RoutedEventArgs e)
 		{
 			_path = PathTextBox.Text;
+			StartPlayingVideo();
+		}
+
+		private void StartPlayingVideo()
+		{
 			var childWindow = new VideoWindow();
 			_windowList.Add(childWindow);
 			childWindow.Width = 640;
 			childWindow.Height = 480;
 			childWindow.Show(_path);
+			
 		}
-
 		private void MainWindow_OnClosed(object sender, EventArgs e)
 		{
 			foreach (var window in _windowList.Cast<VideoWindow>())

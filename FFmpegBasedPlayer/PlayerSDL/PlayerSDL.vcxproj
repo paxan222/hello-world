@@ -101,10 +101,16 @@
   <ItemGroup>
     <ClInclude Include="Player.h" />
     <ClInclude Include="PlayerSdlApi.h" />
+    <ClInclude Include="SamplePlayer.h" />
+    <ClInclude Include="SdlInitialize.h" />
+    <ClInclude Include="SdlPlayer.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Player.cpp" />
     <ClCompile Include="PlayerSdlApi.cpp" />
+    <ClCompile Include="SamplePlayer.cpp" />
+    <ClCompile Include="SdlInitialize.cpp" />
+    <ClCompile Include="SdlPlayer.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

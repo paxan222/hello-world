@@ -25,7 +25,7 @@ extern "C" {
 #pragma comment (lib, "avformat.lib")
 #pragma comment (lib, "avcodec.lib")
 #pragma comment (lib, "avutil.lib")
-#pragma comment (lib, "swresample.lib");
+#pragma comment (lib, "swresample.lib")
 
 #include "PlayerSdlApi.h"
 #pragma comment(lib, "SDL2")
@@ -46,11 +46,15 @@ public:
 	CAVInitializer() {
 		av_register_all();
 		avformat_network_init();
+		SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER);
 	}
 	~CAVInitializer() {
 		avformat_network_deinit();
+		SDL_Quit();
 	}
 };
+
+static FILE* file;
 
 class CPlayerSdl
 {
@@ -60,7 +64,7 @@ class CPlayerSdl
 		AVPacketList *first_pkt, *last_pkt;
 		int nb_packets;
 		int size;
-		int eof;
+		bool eof{ false };
 		SDL_mutex* mutex;
 		SDL_cond* cond;
 	}PacketQueue;
@@ -71,7 +75,7 @@ class CPlayerSdl
 		int max_size;
 		int rindex;  // Read position
 		int windex;  // Write position
-		int eof;  // EOF flag
+		bool eof{ false };  // EOF flag
 		int lastop;  // last operation flag: 0 - read, 1 - write
 		SDL_mutex* mutex;
 		SDL_cond* rcond;
@@ -82,7 +86,7 @@ class CPlayerSdl
 		SDL_cond* condition;
 		SDL_mutex* mutex;
 		SDL_Texture *texture{ nullptr };
-		int ready{ 0 };
+		bool ready{ false };
 		double pts{ 0 };
 	}Picture;
 
@@ -131,7 +135,7 @@ class CPlayerSdl
 	int seek_flags;
 	AVPacket flush_pkt;
 	bool m_renderOn{ true };
-	bool m_online{false};
+	bool m_pause{ false };
 public:
 	CPlayerSdl(PCHAR filename, HWND h_MainWindow)
 	{
@@ -153,11 +157,15 @@ public:
 			avformat_close_input(&m_format_context);
 	}
 	BOOL OpenStream();
+	static int Resize();
+	static int refreshRender(void* data, SDL_Event* event);
 	BOOL Play();
 	BOOL Stop();
+	BOOL Pause(bool pause);
 private:
-	void Log(std::string message);
-	void LogAv(int ret);
+	static void Log(std::string message);
+	static void LogAv(int ret);
+	static void FfmpegLog(void* ptr, int level, const char* fmt, va_list vl);
 	BOOL HasVideo() const;
 	BOOL HasAudio() const;
 	static void AudioCallback(void* userdata, uint8_t* stream, int len);
@@ -182,13 +190,11 @@ private:
 	static int DemuxSdlThread(void* opaque);
 	static double SynchronizeVideo(CPlayerSdl* pPlayerSdl, AVFrame* frame, double pts);
 	static int VideoDecodeSdlThread(void* opaque);
-	static void AudioCallback2(void* userdata, uint8_t* stream, int len);
 	static int AudioDecodeSdlThread(void* opaque);
 	static uint32_t SdlRefreshTimer(uint32_t interval, void* opaque);
 	static void ScheduleRefresh(CPlayerSdl* pPlayerSdl, int delay);
 	static double GetExternalClock();
 	static double GetVideoClock(CPlayerSdl* pPlayerSdl);
-	static double GetAudioClock(CPlayerSdl* pPlayerSdl);
 	static double ComputeDelay(CPlayerSdl* pPlayerSdl);
 	static void VideoDisplay(CPlayerSdl* pPlayerSdl);
 	static void VideoRefreshTimer(CPlayerSdl* pPlayerSdl);

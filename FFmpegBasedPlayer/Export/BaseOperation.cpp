@@ -41,6 +41,8 @@ int CBaseOperation::GetFileDuration(PCHAR filename){
 	while (!av_read_frame(fmtCtx, &packet))
 	{
 		duration += packet.pts - startPts;
+		av_packet_unref(&packet);
+		av_free_packet(&packet);
 	}
 	duration *= av_q2d(fmtCtx->streams[videoStreamIndex]->time_base);
 	av_packet_unref(&packet);

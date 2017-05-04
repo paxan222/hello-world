@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
 using System.IO;
+using System.Threading;
 using System.Windows;
 using System.Windows.Interop;
 using PlayerSdlWrap;
@@ -19,13 +20,27 @@ namespace FFmpegPlayer
 		{
 			InitializeComponent();
 		}
+		bool playerSdl = true;
 
 		public void Show(string path)
 		{
 			Show();
 			var wih = new WindowInteropHelper(this);
 			IntPtr hwnd = wih.Handle;
-			_playerIntPtr = PlayerSdl.StartPlayer(path, hwnd);
+			if (!playerSdl)
+			{
+				_playerIntPtr = PlayerSdl.StartPlayer(path, hwnd);
+				PlayerSdl.Play(_playerIntPtr);
+			}
+			else
+			{
+				_playerIntPtr = PlayerSdl.OpenSdl(path, hwnd);
+				PlayerSdl.PlaySdl(_playerIntPtr);
+				
+			}
+
+			
+			//_playerIntPtr = PlayerSdl.StartPlayer(path, hwnd);
 			//_playerIntPtr = NativePlayer.GetRtspPlayer(path, null, null, null, 10000, hwnd);
 			//NativePlayer.SwitchSound(_playerIntPtr, true);
 			//if (_playerIntPtr != IntPtr.Zero)
@@ -50,7 +65,15 @@ namespace FFmpegPlayer
 		public void CloseChild()
 		{
 			if (_playerIntPtr != IntPtr.Zero)
-				NativePlayer.Stop(_playerIntPtr);
+				if (!playerSdl)
+				{
+					 PlayerSdl.StopPlayer(_playerIntPtr);
+				}
+				else
+				{
+					PlayerSdl.StopSdl(_playerIntPtr);
+
+				}
 			Close();
 		}
 		
